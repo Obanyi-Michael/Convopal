@@ -1,12 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
-  Image,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    FlatList,
+    Image,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -19,6 +22,9 @@ interface Chat {
   unreadCount: number;
   avatar: any;
   isOfficial?: boolean;
+  isPinned?: boolean;
+  isMuted?: boolean;
+  status?: 'online' | 'offline' | 'typing';
 }
 
 // Mock data for chats
@@ -26,11 +32,39 @@ const mockChats: Chat[] = [
   {
     id: "1",
     name: "ConvoPal Team",
-    lastMessage: "Welcome to Convopal! Here are some features you can quic...",
+    lastMessage: "Welcome to Convopal! Here are some features you can explore...",
     time: "5:23",
     unreadCount: 0,
     avatar: require("../../../assets/images/Convopal_logo.jpg"),
     isOfficial: true,
+    isPinned: true,
+    status: 'online',
+  },
+  {
+    id: "2",
+    name: "John Smith",
+    lastMessage: "Hey, how are you doing?",
+    time: "2:15",
+    unreadCount: 3,
+    avatar: "https://via.placeholder.com/50",
+    status: 'typing',
+  },
+  {
+    id: "3",
+    name: "Work Group",
+    lastMessage: "Meeting at 3 PM today",
+    time: "1:45",
+    unreadCount: 0,
+    avatar: "https://via.placeholder.com/50",
+    isMuted: true,
+  },
+  {
+    id: "4",
+    name: "Family Group",
+    lastMessage: "Dinner plans for tonight?",
+    time: "12:30",
+    unreadCount: 5,
+    avatar: "https://via.placeholder.com/50",
   },
 ];
 
@@ -41,14 +75,30 @@ interface ChatItemProps {
 
 const ChatItem: React.FC<ChatItemProps> = ({ item, onPress }) => (
   <TouchableOpacity style={styles.chatItem} onPress={() => onPress(item)}>
-    <Image source={item.avatar} style={styles.avatar} />
+    <View style={styles.avatarContainer}>
+      <Image source={item.avatar} style={styles.avatar} />
+      {item.status === 'online' && <View style={styles.onlineIndicator} />}
+      {item.status === 'typing' && (
+        <View style={styles.typingIndicator}>
+          <Text style={styles.typingText}>typing...</Text>
+        </View>
+      )}
+    </View>
+    
     <View style={styles.chatInfo}>
       <View style={styles.chatHeader}>
-        <Text style={styles.chatName}>{item.name}</Text>
+        <View style={styles.nameContainer}>
+          <Text style={[styles.chatName, item.isPinned && styles.pinnedChat]}>
+            {item.name}
+          </Text>
+          {item.isPinned && <Ionicons name="pin" size={12} color="#07C160" />}
+          {item.isMuted && <Ionicons name="volume-mute" size={12} color="#8E8E93" />}
+        </View>
         <Text style={styles.chatTime}>{item.time}</Text>
       </View>
+      
       <View style={styles.chatFooter}>
-        <Text style={styles.lastMessage} numberOfLines={1}>
+        <Text style={[styles.lastMessage, item.isMuted && styles.mutedMessage]} numberOfLines={1}>
           {item.lastMessage}
         </Text>
         {item.unreadCount > 0 && (
@@ -61,69 +111,90 @@ const ChatItem: React.FC<ChatItemProps> = ({ item, onPress }) => (
   </TouchableOpacity>
 );
 
-const InviteFriendsItem = ({ onPress }: { onPress: () => void }) => (
-  <TouchableOpacity style={styles.inviteItem} onPress={onPress}>
-    <Text style={styles.inviteText}>Invite friends to register</Text>
-    <Ionicons name="chevron-forward" size={16} color="#8E8E93" />
-  </TouchableOpacity>
+const EmptyState = () => (
+  <View style={styles.emptyState}>
+    <View style={styles.emptyIcon}>
+      <Ionicons name="chatbubbles-outline" size={64} color="#C6C6C8" />
+    </View>
+    <Text style={styles.emptyTitle}>No chats yet</Text>
+    <Text style={styles.emptySubtitle}>Start a conversation with friends and family</Text>
+    <TouchableOpacity style={styles.emptyButton}>
+      <Text style={styles.emptyButtonText}>Start Chatting</Text>
+    </TouchableOpacity>
+  </View>
 );
 
 export default function ChatsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [chats] = useState<Chat[]>(mockChats);
+  const [chats, setChats] = useState<Chat[]>(mockChats);
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleChatPress = (chat: Chat) => {
-    // Navigate to chat screen
-    console.log("Chat pressed:", chat.name);
-  };
-
-  const handleInvitePress = () => {
-    // Navigate to invite screen
-    console.log("Invite friends pressed");
+    router.push({
+      pathname: "/(main)/(chat)/[id]",
+      params: { id: chat.id, name: chat.name }
+    });
   };
 
   const handleAddPress = () => {
-    // Add new chat or contact
-    console.log("Add pressed");
+    console.log("Add new chat pressed");
+  };
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    // Simulate refresh
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
   };
 
   const filteredChats = chats.filter((chat) =>
     chat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const renderChatItem = ({ item }: { item: Chat }) => (
+    <ChatItem item={item} onPress={handleChatPress} />
+  );
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.addButton} onPress={handleAddPress}>
-          <Ionicons name="add" size={24} color="#000" />
-        </TouchableOpacity>
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Ionicons name="search" size={20} color="#8E8E93" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search"
+            placeholder="Search chats"
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#8E8E93"
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")}>
+              <Ionicons name="close-circle" size={20} color="#8E8E93" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
       {/* Chat List */}
-      <View style={styles.chatList}>
-        {/* ConvoPal Team Chat */}
-        {filteredChats.map((chat) => (
-          <ChatItem key={chat.id} item={chat} onPress={handleChatPress} />
-        ))}
-        
-        <View style={styles.separator} />
-        
-        {/* Invite Friends Section */}
-        <InviteFriendsItem onPress={handleInvitePress} />
-        
-        <View style={styles.separator} />
-      </View>
+      <FlatList
+        data={filteredChats}
+        renderItem={renderChatItem}
+        keyExtractor={(item) => item.id}
+        style={styles.chatList}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+        ListEmptyComponent={EmptyState}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+      />
+
+      {/* Floating Action Button */}
+      <TouchableOpacity style={styles.fab} onPress={handleAddPress}>
+        <Ionicons name="add" size={24} color="white" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -134,12 +205,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
   },
   header: {
-    flexDirection: "column",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     paddingTop: 20,
-    gap: 12,
     width: "100%",
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#000",
+  },
+  addButton: {
+    padding: 1,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingTop: 16,
+    backgroundColor: "#F2F2F7",
   },
   searchBar: {
     width: "100%",
@@ -149,10 +235,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
-  },
-  addButton: {
-    padding: 1,
-    alignSelf: "flex-end",
   },
   searchInput: {
     flex: 1,
@@ -169,11 +251,39 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     alignItems: "center",
   },
-  avatar: {
+  avatarContainer: {
+    position: "relative",
     width: 50,
     height: 50,
     borderRadius: 25,
     marginRight: 12,
+  },
+  avatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 25,
+  },
+  onlineIndicator: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#34C759",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  typingIndicator: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: "#007AFF",
+    borderRadius: 5,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  typingText: {
+    color: "white",
+    fontSize: 10,
   },
   chatInfo: {
     flex: 1,
@@ -184,10 +294,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
   },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   chatName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#000",
+  },
+  pinnedChat: {
+    marginLeft: 4,
   },
   chatTime: {
     fontSize: 12,
@@ -204,6 +321,9 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
     marginRight: 8,
   },
+  mutedMessage: {
+    color: "#8E8E93",
+  },
   unreadBadge: {
     backgroundColor: "#FF3B30",
     borderRadius: 10,
@@ -217,19 +337,57 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  inviteItem: {
-    flexDirection: "row",
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    backgroundColor: "white",
+    padding: 20,
+    backgroundColor: "#F2F2F7",
   },
-  inviteText: {
-    fontSize: 16,
+  emptyIcon: {
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
     color: "#000",
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: "#8E8E93",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  emptyButton: {
+    backgroundColor: "#07C160",
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 10,
+  },
+  emptyButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
   },
   separator: {
     height: 0.5,
     backgroundColor: "#C6C6C8",
+  },
+  fab: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    backgroundColor: "#07C160",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
 });

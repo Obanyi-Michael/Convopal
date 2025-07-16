@@ -1,19 +1,30 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../../src/context/AuthContext";
+
+const { width } = Dimensions.get('window');
 
 export default function VerificationScreen() {
+  const insets = useSafeAreaInsets();
+  const { clearSignupData } = useAuth();
   const [code, setCode] = useState([
     { id: 0, value: "" },
     { id: 1, value: "" },
@@ -25,7 +36,38 @@ export default function VerificationScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [attempts, setAttempts] = useState(0);
+
   const inputRefs = useRef<TextInput[]>([]);
+  
+  // Animation values
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
+  const [progressAnim] = useState(new Animated.Value(0));
+  const [shakeAnim] = useState(new Animated.Value(0));
+
+  useEffect(() => {
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 80,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Progress animation (separate to avoid useNativeDriver issues)
+    Animated.timing(progressAnim, {
+      toValue: 0.66,
+      duration: 1000,
+      useNativeDriver: false,
+    }).start();
+  }, [fadeAnim, slideAnim, progressAnim]);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -67,12 +109,31 @@ export default function VerificationScreen() {
         // Simulate verification success
         if (Math.random() > 0.3) { // 70% success rate for demo
           router.replace("/(auth)/welcome");
+          clearSignupData(); // Clear signup data on successful verification
         } else {
           setAttempts(attempts + 1);
           if (attempts >= 2) {
             Alert.alert("Too Many Attempts", "Please request a new code.");
             setAttempts(0);
           } else {
+            // Shake animation for error
+            Animated.sequence([
+              Animated.timing(shakeAnim, {
+                toValue: 10,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+              Animated.timing(shakeAnim, {
+                toValue: -10,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+              Animated.timing(shakeAnim, {
+                toValue: 0,
+                duration: 100,
+                useNativeDriver: true,
+              }),
+            ]).start();
             Alert.alert("Invalid Code", "Please check your code and try again.");
           }
         }
@@ -92,107 +153,165 @@ export default function VerificationScreen() {
     console.log("Resend code");
   };
 
+  const handleVoiceCall = () => {
+    Alert.alert("Voice Call", "You will receive a call with the verification code.");
+    console.log("Voice call requested");
+  };
+
   const handleBack = () => {
-    router.push("/(auth)");
+    router.push("/(auth)/signup");
   };
 
   const isCodeComplete = code.every((item) => item.value !== "");
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-        {/* Main Content */}
-        <View style={styles.mainContent}>
-          {/* Centered Content Container */}
-          <View style={styles.contentContainer}>
-            {/* White Container */}
-            <View style={styles.whiteContainer}>
-              {/* Title */}
-              <View style={styles.titleSection}>
-                <Text style={styles.title}>VERIFICATION</Text>
-              </View>
-
-              <Text style={styles.instruction}>
-                Enter the 6-digit code sent to +233 54*****758
-              </Text>
-
-              {/* Code Input */}
-              <View style={styles.codeContainer}>
-                {code.map((item, index) => (
-                  <TextInput
-                    key={`code-input-${item.id}`}
-                    ref={(ref) => {
-                      if (ref) inputRefs.current[index] = ref;
-                    }}
-                    style={[styles.codeInput, item.value && styles.codeInputFilled]}
-                    value={item.value}
-                    onChangeText={(text) => handleCodeChange(text, index)}
-                    onKeyPress={(e) => handleKeyPress(e, index)}
-                    keyboardType="number-pad"
-                    maxLength={1}
-                    textAlign="center"
-                    placeholder="•"
-                    placeholderTextColor="#C6C6C8"
-                  />
-                ))}
-              </View>
-
-              {/* Resend Code */}
-              <TouchableOpacity 
-                style={[styles.resendContainer, resendTimer > 0 && styles.resendDisabled]} 
-                onPress={handleResendCode}
-                disabled={resendTimer > 0}
-              >
-                <Ionicons 
-                  name="refresh" 
-                  size={16} 
-                  color={resendTimer > 0 ? "#C6C6C8" : "#007AFF"} 
-                  style={styles.resendIcon}
-                />
-                <Text style={[styles.resendText, resendTimer > 0 && styles.resendTextDisabled]}>
-                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
-                </Text>
-              </TouchableOpacity>
-
-              {/* Attempts Warning */}
-              {attempts > 0 && (
-                <View style={styles.attemptsContainer}>
-                  <Ionicons name="warning" size={16} color="#FF9500" />
-                  <Text style={styles.attemptsText}>
-                    {3 - attempts} attempts remaining
-                  </Text>
-                </View>
-              )}
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Ionicons name="chevron-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <Animated.View 
+                style={[
+                  styles.progressFill,
+                  { 
+                    width: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%']
+                    })
+                  }
+                ]} 
+              />
             </View>
+            <Text style={styles.progressText}>Step 2 of 3</Text>
           </View>
+          <View style={styles.headerRight} />
         </View>
 
-        {/* Bottom Buttons */}
-        <View style={styles.bottomButtons}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backButtonText}>Back</Text>
-          </TouchableOpacity>
+        {/* Main Content */}
+        <View style={styles.mainContent}>
+          <Animated.View 
+            style={[
+              styles.contentContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
+          >
+            {/* Title Section */}
+            <View style={styles.titleSection}>
+              <View style={styles.logoContainer}>
+                <LinearGradient
+                  colors={['#07C160', '#00A854']}
+                  style={styles.logoGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Ionicons name="shield-checkmark" size={32} color="white" />
+                </LinearGradient>
+              </View>
+              <Text style={styles.title}>Verify Your Phone</Text>
+                             <Text style={styles.subtitle}>We&apos;ve sent a 6-digit code to</Text>
+              <Text style={styles.phoneNumber}>+233 54*****758</Text>
+            </View>
 
+            {/* Code Input */}
+            <Animated.View 
+              style={[
+                styles.codeContainer,
+                {
+                  transform: [{ translateX: shakeAnim }],
+                }
+              ]}
+            >
+              {code.map((item, index) => (
+                <TextInput
+                  key={`code-input-${item.id}`}
+                  ref={(ref) => {
+                    if (ref) inputRefs.current[index] = ref;
+                  }}
+                  style={[
+                    styles.codeInput, 
+                    item.value && styles.codeInputFilled
+                  ]}
+                  value={item.value}
+                  onChangeText={(text) => handleCodeChange(text, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  onFocus={() => {
+                    // Simple focus handling - no complex logic
+                  }}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  textAlign="center"
+                  placeholder="•"
+                  placeholderTextColor="#C6C6C8"
+                  autoComplete="one-time-code"
+                  textContentType="oneTimeCode"
+                />
+              ))}
+            </Animated.View>
+
+            {/* Error Message */}
+            {attempts > 0 && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="warning" size={16} color="#FF3B30" />
+                <Text style={styles.errorText}>
+                  Invalid code. {3 - attempts} attempts remaining
+                </Text>
+              </View>
+            )}
+
+                         {/* Action Links */}
+             <View style={styles.actionLinks}>
+               <TouchableOpacity 
+                 onPress={handleResendCode}
+                 disabled={resendTimer > 0}
+               >
+                 <Text style={[styles.resendText, resendTimer > 0 && styles.resendTextDisabled]}>
+                   {resendTimer > 0 ? `Resend in ${resendTimer}s` : "Resend Code"}
+                 </Text>
+               </TouchableOpacity>
+
+               <TouchableOpacity onPress={handleVoiceCall}>
+                 <Text style={styles.voiceText}>Call me instead</Text>
+               </TouchableOpacity>
+             </View>
+          </Animated.View>
+        </View>
+
+        {/* Bottom Button */}
+        <View style={styles.bottomContainer}>
           <TouchableOpacity
             style={[
               styles.continueButton,
               isCodeComplete && styles.continueButtonActive,
+              isLoading && styles.continueButtonDisabled,
             ]}
             onPress={handleContinue}
-            disabled={!isCodeComplete}
+            disabled={!isCodeComplete || isLoading}
           >
-            <Text
-              style={[
-                styles.continueButtonText,
-                isCodeComplete && styles.continueButtonTextActive,
-              ]}
-            >
-              Continue
-            </Text>
+            {isLoading ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <>
+                <Ionicons name="checkmark" size={20} color={isCodeComplete ? "white" : "#8E8E93"} />
+                <Text style={[
+                  styles.continueButtonText,
+                  isCodeComplete && styles.continueButtonTextActive,
+                ]}>
+                  Verify & Continue
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -208,6 +327,43 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
   },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    backgroundColor: "white",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E5EA",
+  },
+  backButton: {
+    padding: 8,
+  },
+  progressContainer: {
+    alignItems: "center",
+    flex: 1,
+  },
+  progressBar: {
+    width: "80%",
+    height: 8,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#07C160",
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: "#8E8E93",
+  },
+  headerRight: {
+    width: 40,
+  },
   mainContent: {
     flex: 1,
     justifyContent: "center",
@@ -219,28 +375,41 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 300,
   },
-  whiteContainer: {
-    backgroundColor: "white",
-    padding: 20,
-    alignItems: "center",
-    width: "100%",
-  },
   titleSection: {
     alignItems: "center",
     marginBottom: 20,
+  },
+  logoContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#E5E5EA",
+    marginBottom: 15,
+  },
+  logoGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
   },
   title: {
     fontSize: 24,
     fontWeight: "600",
     color: "#000",
-    marginBottom: 20,
+    marginBottom: 10,
   },
-  instruction: {
+  subtitle: {
     fontSize: 16,
     color: "#8E8E93",
-    textAlign: "center",
-    marginBottom: 40,
-    lineHeight: 24,
+    marginBottom: 5,
+  },
+  phoneNumber: {
+    fontSize: 16,
+    color: "#000",
+    fontWeight: "600",
   },
   codeContainer: {
     flexDirection: "row",
@@ -257,43 +426,68 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     backgroundColor: "white",
   },
-  resendContainer: {
-    marginBottom: 40,
+  codeInputFilled: {
+    borderColor: "#07C160",
+    backgroundColor: "#F0FFF0",
   },
-  resendText: {
-    color: "#007AFF",
-    fontSize: 16,
+  codeInputFocused: {
+    borderColor: "#07C160",
+    backgroundColor: "#F0FFF0",
+    borderWidth: 2,
   },
-  bottomButtons: {
+  errorContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#FFEBE6",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    marginTop: 10,
+    marginBottom: 20,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#FF3B30",
+    marginLeft: 8,
+  },
+     actionLinks: {
+     flexDirection: "row",
+     justifyContent: "space-between",
+     width: "100%",
+     marginTop: 20,
+   },
+   resendText: {
+     color: "#07C160",
+     fontSize: 16,
+     textDecorationLine: "underline",
+   },
+   voiceText: {
+     color: "#007AFF",
+     fontSize: 16,
+     textDecorationLine: "underline",
+   },
+   resendTextDisabled: {
+     color: "#C6C6C8",
+     textDecorationLine: "none",
+   },
+  bottomContainer: {
     paddingHorizontal: 20,
     paddingBottom: 50,
-    gap: 40,
-  },
-  backButton: {
-    flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: "center",
-    backgroundColor: "#E5E5EA",
-  },
-  backButtonText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#8E8E93",
   },
   continueButton: {
-    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderRadius: 8,
-    alignItems: "center",
     backgroundColor: "#E5E5EA",
   },
   continueButtonActive: {
     backgroundColor: "#07C160",
+  },
+  continueButtonDisabled: {
+    opacity: 0.5,
   },
   continueButtonText: {
     fontSize: 18,
@@ -302,29 +496,5 @@ const styles = StyleSheet.create({
   },
   continueButtonTextActive: {
     color: "white",
-  },
-  codeInputFilled: {
-    borderColor: "#07C160",
-    backgroundColor: "#F0FFF0",
-  },
-  resendDisabled: {
-    opacity: 0.5,
-  },
-  resendIcon: {
-    marginRight: 8,
-  },
-  resendTextDisabled: {
-    color: "#C6C6C8",
-  },
-  attemptsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-  },
-  attemptsText: {
-    fontSize: 14,
-    color: "#FF9500",
-    marginLeft: 8,
   },
 }); 

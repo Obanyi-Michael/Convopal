@@ -1,19 +1,27 @@
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../../src/context/AuthContext";
+
+const { width } = Dimensions.get('window');
 
 interface ValidationErrors {
   fullName?: string;
@@ -23,39 +31,72 @@ interface ValidationErrors {
 }
 
 export default function SignupScreen() {
-  const [fullName, setFullName] = useState("");
-  const [country, setCountry] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
+  const insets = useSafeAreaInsets();
+  const { signupData, setSignupData, clearSignupData } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  
+  // Animation values
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(30));
+  const [progressAnim] = useState(new Animated.Value(0));
+
+  // Helper functions to update context
+  const updateSignupData = (field: keyof typeof signupData, value: string) => {
+    setSignupData({
+      ...signupData,
+      [field]: value,
+    });
+  };
+
+  useEffect(() => {
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 80,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(progressAnim, {
+        toValue: 0.33,
+        duration: 1000,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, []);
 
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
 
-    if (!fullName.trim()) {
+    if (!signupData.fullName.trim()) {
       newErrors.fullName = "Full name is required";
-    } else if (fullName.length < 2) {
+    } else if (signupData.fullName.length < 2) {
       newErrors.fullName = "Full name must be at least 2 characters";
     }
 
-    if (!country.trim()) {
+    if (!signupData.country.trim()) {
       newErrors.country = "Country is required";
     }
 
-    if (!phone.trim()) {
+    if (!signupData.phone.trim()) {
       newErrors.phone = "Phone number is required";
-    } else if (!/^\+?[\d\s-()]{10,}$/.test(phone)) {
+    } else if (!/^\+?[\d\s-()]{10,}$/.test(signupData.phone)) {
       newErrors.phone = "Please enter a valid phone number";
     }
 
-    if (!password.trim()) {
+    if (!signupData.password.trim()) {
       newErrors.password = "Password is required";
-    } else if (password.length < 8) {
+    } else if (signupData.password.length < 8) {
       newErrors.password = "Password must be at least 8 characters";
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(signupData.password)) {
       newErrors.password = "Password must contain uppercase, lowercase, and number";
     }
 
@@ -68,14 +109,14 @@ export default function SignupScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const getPasswordStrength = (): { strength: string; color: string } => {
-    if (password.length === 0) return { strength: "", color: "#8E8E93" };
-    if (password.length < 6) return { strength: "Weak", color: "#FF3B30" };
-    if (password.length < 8) return { strength: "Fair", color: "#FF9500" };
-    if (/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      return { strength: "Strong", color: "#07C160" };
+  const getPasswordStrength = (): { strength: string; color: string; progress: number } => {
+    if (signupData.password.length === 0) return { strength: "", color: "#8E8E93", progress: 0 };
+    if (signupData.password.length < 6) return { strength: "Weak", color: "#FF3B30", progress: 0.25 };
+    if (signupData.password.length < 8) return { strength: "Fair", color: "#FF9500", progress: 0.5 };
+    if (/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(signupData.password)) {
+      return { strength: "Strong", color: "#07C160", progress: 1 };
     }
-    return { strength: "Good", color: "#007AFF" };
+    return { strength: "Good", color: "#007AFF", progress: 0.75 };
   };
 
   const handleSignup = async () => {
@@ -90,7 +131,13 @@ export default function SignupScreen() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Implement signup logic
-      console.log("Signup:", { fullName, country, phone, password });
+      console.log("Signup:", { 
+        fullName: signupData.fullName, 
+        country: signupData.country, 
+        phone: signupData.phone, 
+        password: signupData.password 
+      });
+      
       router.push("/(auth)/verification");
     } catch (error) {
       Alert.alert("Signup Failed", "Please try again later.");
@@ -103,18 +150,42 @@ export default function SignupScreen() {
     router.push("/(auth)");
   };
 
+  const handleSocialLogin = (provider: string) => {
+    Alert.alert(`${provider} Signup`, `${provider} signup functionality will be implemented.`);
+  };
+
+  const passwordStrength = getPasswordStrength();
+
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
             <Ionicons name="chevron-back" size={24} color="#000" />
           </TouchableOpacity>
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <Animated.View 
+                style={[
+                  styles.progressFill,
+                  { 
+                    width: progressAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%']
+                    })
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.progressText}>Step 1 of 3</Text>
+          </View>
+          <View style={styles.headerRight} />
         </View>
 
         {/* Form */}
@@ -124,142 +195,216 @@ export default function SignupScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Title and Icon */}
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>SIGNUP</Text>
-            <View style={styles.iconContainer}>
-              <Ionicons name="person" size={40} color="#000" />
-              <Ionicons name="add" size={24} color="#000" style={styles.addIcon} />
+          {/* Title Section */}
+          <Animated.View 
+            style={[
+              styles.titleSection,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
+          >
+            <View style={styles.logoContainer}>
+              <LinearGradient
+                colors={['#07C160', '#00A854']}
+                style={styles.logoGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="person-add" size={32} color="white" />
+              </LinearGradient>
             </View>
-          </View>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join ConvoPal and connect with friends</Text>
+          </Animated.View>
 
-          {/* Full Name Input */}
-          <View style={styles.inputContainer}>
-            <Ionicons name="person" size={20} color="#8E8E93" />
-            <TextInput
-              style={[styles.input, errors.fullName && styles.inputError]}
-              placeholder="Full Name"
-              value={fullName}
-              onChangeText={(text) => {
-                setFullName(text);
-                if (errors.fullName) {
-                  setErrors({ ...errors, fullName: undefined });
-                }
-              }}
-              placeholderTextColor="#8E8E93"
-              autoCapitalize="words"
-            />
-          </View>
-          {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
-
-          {/* Country Input */}
-          <View style={styles.inputContainer}>
-            <Ionicons name="location" size={20} color="#8E8E93" />
-            <TextInput
-              style={[styles.input, errors.country && styles.inputError]}
-              placeholder="Country"
-              value={country}
-              onChangeText={(text) => {
-                setCountry(text);
-                if (errors.country) {
-                  setErrors({ ...errors, country: undefined });
-                }
-              }}
-              placeholderTextColor="#8E8E93"
-            />
-            <TouchableOpacity style={styles.infoButton} onPress={() => {
-              Alert.alert("Country Selection", "Please select your country for better service.");
-            }}>
-              <Ionicons name="ellipsis-vertical" size={20} color="#8E8E93" />
-            </TouchableOpacity>
-          </View>
-          {errors.country && <Text style={styles.errorText}>{errors.country}</Text>}
-
-          {/* Phone Input */}
-          <View style={styles.inputContainer}>
-            <Ionicons name="call" size={20} color="#8E8E93" />
-            <TextInput
-              style={[styles.input, errors.phone && styles.inputError]}
-              placeholder="Phone Number"
-              value={phone}
-              onChangeText={(text) => {
-                setPhone(text);
-                if (errors.phone) {
-                  setErrors({ ...errors, phone: undefined });
-                }
-              }}
-              keyboardType="phone-pad"
-              placeholderTextColor="#8E8E93"
-            />
-          </View>
-          {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
-
-          {/* Password Input */}
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed" size={20} color="#8E8E93" />
-            <TextInput
-              style={[styles.input, errors.password && styles.inputError]}
-              placeholder="Password"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (errors.password) {
-                  setErrors({ ...errors, password: undefined });
-                }
-              }}
-              secureTextEntry={!showPassword}
-              placeholderTextColor="#8E8E93"
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeButton}
+          {/* Social Login Options */}
+          <Animated.View 
+            style={[
+              styles.socialContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
+          >
+            <TouchableOpacity 
+              style={styles.socialButton}
+              onPress={() => handleSocialLogin('Google')}
             >
-              <Ionicons
-                name={showPassword ? "eye-off" : "eye"}
-                size={20}
-                color="#8E8E93"
-              />
+              <Ionicons name="logo-google" size={20} color="#DB4437" />
+              <Text style={styles.socialButtonText}>Continue with Google</Text>
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.socialButton}
+              onPress={() => handleSocialLogin('Apple')}
+            >
+              <Ionicons name="logo-apple" size={20} color="#000" />
+              <Text style={styles.socialButtonText}>Continue with Apple</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.divider} />
+            <Text style={styles.dividerText}>or sign up with email</Text>
+            <View style={styles.divider} />
           </View>
-          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
 
-          {/* Password Strength */}
-          {password.length > 0 && (
-            <View style={styles.passwordStrengthContainer}>
-              <Text style={styles.passwordStrengthLabel}>Password strength:</Text>
-              <Text style={[styles.passwordStrengthText, { color: getPasswordStrength().color }]}>
-                {getPasswordStrength().strength}
+          {/* Form Fields */}
+          <Animated.View 
+            style={[
+              styles.formContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              }
+            ]}
+          >
+            {/* Full Name Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <View style={[styles.inputContainer, errors.fullName && styles.inputError]}>
+                <Ionicons name="person" size={20} color="#8E8E93" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your full name"
+                  value={signupData.fullName}
+                  onChangeText={(text) => {
+                    updateSignupData('fullName', text);
+                    if (errors.fullName) {
+                      setErrors({ ...errors, fullName: undefined });
+                    }
+                  }}
+                  placeholderTextColor="#8E8E93"
+                  autoCapitalize="words"
+                />
+              </View>
+              {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
+            </View>
+
+            {/* Country Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Country</Text>
+              <View style={[styles.inputContainer, errors.country && styles.inputError]}>
+                <Ionicons name="location" size={20} color="#8E8E93" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Select your country"
+                  value={signupData.country}
+                  onChangeText={(text) => {
+                    updateSignupData('country', text);
+                    if (errors.country) {
+                      setErrors({ ...errors, country: undefined });
+                    }
+                  }}
+                  placeholderTextColor="#8E8E93"
+                />
+                <TouchableOpacity style={styles.infoButton} onPress={() => {
+                  Alert.alert("Country Selection", "Please select your country for better service.");
+                }}>
+                  <Ionicons name="chevron-down" size={20} color="#8E8E93" />
+                </TouchableOpacity>
+              </View>
+              {errors.country && <Text style={styles.errorText}>{errors.country}</Text>}
+            </View>
+
+            {/* Phone Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Phone Number</Text>
+              <View style={[styles.inputContainer, errors.phone && styles.inputError]}>
+                <Ionicons name="call" size={20} color="#8E8E93" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your phone number"
+                  value={signupData.phone}
+                  onChangeText={(text) => {
+                    updateSignupData('phone', text);
+                    if (errors.phone) {
+                      setErrors({ ...errors, phone: undefined });
+                    }
+                  }}
+                  keyboardType="phone-pad"
+                  placeholderTextColor="#8E8E93"
+                />
+              </View>
+              {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
+            </View>
+
+            {/* Password Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={[styles.inputContainer, errors.password && styles.inputError]}>
+                <Ionicons name="lock-closed" size={20} color="#8E8E93" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Create a strong password"
+                  value={signupData.password}
+                  onChangeText={(text) => {
+                    updateSignupData('password', text);
+                    if (errors.password) {
+                      setErrors({ ...errors, password: undefined });
+                    }
+                  }}
+                  secureTextEntry={!showPassword}
+                  placeholderTextColor="#8E8E93"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#8E8E93"
+                  />
+                </TouchableOpacity>
+              </View>
+              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+              
+              {/* Simple Password Strength */}
+              {signupData.password.length > 0 && (
+                <View style={styles.passwordStrengthContainer}>
+                  <Text style={[styles.passwordStrengthText, { color: passwordStrength.color }]}>
+                    {passwordStrength.strength}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Terms Agreement */}
+            <TouchableOpacity 
+              style={styles.termsContainer}
+              onPress={() => setAgreeToTerms(!agreeToTerms)}
+            >
+              <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
+                {agreeToTerms && <Ionicons name="checkmark" size={14} color="white" />}
+              </View>
+              <Text style={styles.termsText}>
+                I agree to the{" "}
+                <Text style={styles.linkText}>Terms of Service</Text> and{" "}
+                <Text style={styles.linkText}>Privacy Policy</Text>
               </Text>
-            </View>
-          )}
+            </TouchableOpacity>
 
-          {/* Terms Agreement */}
-          <TouchableOpacity 
-            style={styles.termsContainer}
-            onPress={() => setAgreeToTerms(!agreeToTerms)}
-          >
-            <View style={[styles.checkbox, agreeToTerms && styles.checkboxChecked]}>
-              {agreeToTerms && <Ionicons name="checkmark" size={16} color="white" />}
-            </View>
-            <Text style={styles.termsText}>
-              I agree to the{" "}
-              <Text style={styles.linkText}>Terms of Service</Text> and{" "}
-              <Text style={styles.linkText}>Privacy Policy</Text>
-            </Text>
-          </TouchableOpacity>
-
-          {/* Signup Button */}
-          <TouchableOpacity 
-            style={[styles.signupButton, isLoading && styles.signupButtonDisabled]} 
-            onPress={handleSignup}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="white" size="small" />
-            ) : (
-              <Text style={styles.signupButtonText}>Create Account</Text>
-            )}
-          </TouchableOpacity>
+            {/* Signup Button */}
+            <TouchableOpacity
+              style={[styles.signupButton, isLoading && styles.signupButtonDisabled]}
+              onPress={handleSignup}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="white" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="person-add" size={20} color="white" style={styles.buttonIcon} />
+                  <Text style={styles.signupButtonText}>Create Account</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -278,11 +423,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingTop: 50,
+    paddingBottom: 16,
   },
   backButton: {
     padding: 2,
+  },
+  progressContainer: {
+    alignItems: "center",
+    marginTop: 10,
+  },
+  progressBar: {
+    width: "80%",
+    height: 8,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 4,
+    backgroundColor: "#07C160",
+  },
+  progressText: {
+    fontSize: 12,
+    color: "#8E8E93",
+  },
+  headerRight: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
@@ -296,20 +463,73 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  logoGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   title: {
     fontSize: 24,
     fontWeight: "600",
     color: "#8E8E93",
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#8E8E93",
+    textAlign: "center",
+  },
+  socialContainer: {
+    marginTop: 20,
+  },
+  socialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E0E0E0",
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  socialButtonText: {
+    marginLeft: 10,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
     marginBottom: 20,
   },
-  iconContainer: {
-    position: "relative",
-    alignItems: "center",
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E5E5EA",
   },
-  addIcon: {
-    position: "absolute",
-    right: -10,
-    top: -5,
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    color: "#8E8E93",
+  },
+  formContainer: {
+    marginTop: 20,
+  },
+  inputGroup: {
+    marginBottom: 15,
+  },
+  inputLabel: {
+    fontSize: 14,
+    color: "#8E8E93",
+    marginBottom: 8,
   },
   inputContainer: {
     flexDirection: "row",
@@ -334,18 +554,32 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   signupButton: {
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#07C160",
     paddingVertical: 16,
     paddingHorizontal: 40,
     borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 20,
     alignSelf: "center",
+    flexDirection: "row",
+    shadowColor: '#07C160',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   signupButtonText: {
     color: "white",
     fontSize: 18,
     fontWeight: "600",
+    marginLeft: 10,
+  },
+  buttonIcon: {
+    marginRight: 10,
   },
   inputError: {
     borderColor: "#FF3B30",
@@ -357,19 +591,12 @@ const styles = StyleSheet.create({
     marginLeft: 48,
   },
   passwordStrengthContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
+    marginTop: 4,
     marginLeft: 48,
-  },
-  passwordStrengthLabel: {
-    fontSize: 12,
-    color: "#8E8E93",
-    marginRight: 8,
   },
   passwordStrengthText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   termsContainer: {
     flexDirection: "row",

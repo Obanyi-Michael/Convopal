@@ -2,15 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  Animated,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Animated,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface FeatureItemProps {
   title: string;
@@ -32,6 +32,7 @@ const FeatureItem: React.FC<FeatureItemProps> = ({ title, icon, iconColor, descr
 );
 
 export default function WelcomeScreen() {
+  const insets = useSafeAreaInsets();
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
 
@@ -63,7 +64,7 @@ export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
         <Text style={styles.headerTitle}>ConvoPal Team</Text>
         <TouchableOpacity style={styles.personButton} onPress={() => {
           console.log("Person button pressed");
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     backgroundColor: "white",
   },
   headerTitle: {

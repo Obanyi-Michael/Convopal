@@ -1,20 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { Platform } from "react-native";
 
 const ChatIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="chatbubbles-outline" size={size} color={color} />
+  <Ionicons name="chatbubbles" size={size} color={color} />
 );
 
 const ContactsIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="people-outline" size={size} color={color} />
+  <Ionicons name="people" size={size} color={color} />
 );
 
 const DiscoverIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="compass-outline" size={size} color={color} />
+  <Ionicons name="compass" size={size} color={color} />
 );
 
 const MeIcon = ({ color, size }: { color: string; size: number }) => (
-  <Ionicons name="person-outline" size={size} color={color} />
+  <Ionicons name="person" size={size} color={color} />
 );
 
 export default function MainLayout() {
@@ -24,20 +25,45 @@ export default function MainLayout() {
         tabBarActiveTintColor: "#07C160",
         tabBarInactiveTintColor: "#8E8E93",
         tabBarStyle: {
-          backgroundColor: "#F2F2F7",
-          borderTopWidth: 0.5,
-          borderTopColor: "#C6C6C8",
-          paddingBottom: 20,
-          paddingTop: 5,
-          height: 70,
+          backgroundColor: "#FFFFFF",
+          borderTopWidth: 0,
+          shadowColor: "#000",
+          shadowOffset: {
+            width: 0,
+            height: -2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 10,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 10,
+          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 88 : 70,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "600",
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginBottom: 2,
         },
         headerStyle: {
-          backgroundColor: "#EDEDED",
+          backgroundColor: "#FFFFFF",
+          shadowColor: "#000",
+          shadowOffset: {
+            width: 0,
+            height: 1,
+          },
+          shadowOpacity: 0.05,
+          shadowRadius: 3,
+          elevation: 3,
         },
         headerTitleStyle: {
           color: "#000000",
-          fontWeight: "600",
+          fontWeight: "700",
+          fontSize: 18,
         },
+        headerShadowVisible: false,
       }}
     >
       <Tabs.Screen
@@ -45,6 +71,7 @@ export default function MainLayout() {
         options={{
           title: "Chats",
           tabBarIcon: ChatIcon,
+          tabBarBadge: 2, // Show unread count
         }}
       />
       <Tabs.Screen
