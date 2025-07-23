@@ -18,6 +18,10 @@ const MeIcon = ({ color, size }: { color: string; size: number }) => (
   <Ionicons name="person" size={size} color={color} />
 );
 
+const MomentsIcon = ({ color, size }: { color: string; size: number }) => (
+  <Ionicons name="images" size={size} color={color} />
+);
+
 export default function MainLayout() {
   return (
     <Tabs
@@ -86,6 +90,13 @@ export default function MainLayout() {
         options={{
           title: "Discover",
           tabBarIcon: DiscoverIcon,
+        }}
+      />
+      <Tabs.Screen
+        name="moments"
+        options={{
+          title: "Moments",
+          tabBarIcon: MomentsIcon,
         }}
       />
       <Tabs.Screen

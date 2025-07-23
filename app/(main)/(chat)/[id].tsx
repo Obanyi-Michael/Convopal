@@ -3,24 +3,14 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useState } from "react";
 import {
     FlatList,
-    Image,
     KeyboardAvoidingView,
     Platform,
     StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-interface Message {
-  id: string;
-  text: string;
-  timestamp: string;
-  isFromMe: boolean;
-  avatar?: any;
-}
+import { MessageBubble, Message } from "../../../src/components/MessageBubble";
+import { MessageInput } from "../../../src/components/MessageInput";
 
 // Mock messages data
 const mockMessages: Message[] = [
@@ -30,12 +20,16 @@ const mockMessages: Message[] = [
     timestamp: "10:30 AM",
     isFromMe: false,
     avatar: require("../../../assets/images/Convopal_logo.jpg"),
+    type: "text",
+    isRead: true,
   },
   {
     id: "2",
     text: "Hi! I'm excited to try out the new features!",
     timestamp: "10:32 AM",
     isFromMe: true,
+    type: "text",
+    isRead: true,
   },
   {
     id: "3",
@@ -43,12 +37,16 @@ const mockMessages: Message[] = [
     timestamp: "10:33 AM",
     isFromMe: false,
     avatar: require("../../../assets/images/Convopal_logo.jpg"),
+    type: "text",
+    isRead: true,
   },
   {
     id: "4",
     text: "That sounds amazing! Can I customize my profile?",
     timestamp: "10:35 AM",
     isFromMe: true,
+    type: "text",
+    isRead: true,
   },
   {
     id: "5",
@@ -56,57 +54,101 @@ const mockMessages: Message[] = [
     timestamp: "10:36 AM",
     isFromMe: false,
     avatar: require("../../../assets/images/Convopal_logo.jpg"),
+    type: "text",
+    isRead: true,
+  },
+  {
+    id: "6",
+    imageUrl: "https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Sample+Image",
+    timestamp: "10:38 AM",
+    isFromMe: false,
+    avatar: require("../../../assets/images/Convopal_logo.jpg"),
+    type: "image",
+    isRead: true,
+  },
+  {
+    id: "7",
+    voiceDuration: 15,
+    timestamp: "10:40 AM",
+    isFromMe: true,
+    type: "voice",
+    isRead: false,
+  },
+  {
+    id: "8",
+    text: "Welcome John!",
+    timestamp: "10:42 AM",
+    type: "system",
+    isRead: true,
   },
 ];
 
-interface MessageItemProps {
-  message: Message;
-}
 
-const MessageItem: React.FC<MessageItemProps> = ({ message }) => (
-  <View style={[styles.messageContainer, message.isFromMe ? styles.myMessage : styles.otherMessage]}>
-    {!message.isFromMe && message.avatar && (
-      <Image source={message.avatar} style={styles.avatar} />
-    )}
-    <View style={[styles.messageBubble, message.isFromMe ? styles.myBubble : styles.otherBubble]}>
-      <Text style={[styles.messageText, message.isFromMe ? styles.myMessageText : styles.otherMessageText]}>
-        {message.text}
-      </Text>
-      <Text style={[styles.timestamp, message.isFromMe ? styles.myTimestamp : styles.otherTimestamp]}>
-        {message.timestamp}
-      </Text>
-    </View>
-  </View>
-);
 
 export default function ChatDetailScreen() {
   const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
   const [messages, setMessages] = useState<Message[]>(mockMessages);
-  const [newMessage, setNewMessage] = useState("");
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      const message: Message = {
-        id: Date.now().toString(),
-        text: newMessage.trim(),
+  const handleSendMessage = (text: string) => {
+    const message: Message = {
+      id: Date.now().toString(),
+      text: text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isFromMe: true,
+      type: "text",
+      isRead: false,
+    };
+    setMessages(prev => [...prev, message]);
+    
+    // Simulate reply after 1 second
+    setTimeout(() => {
+      const reply: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "Thanks for your message! I'll get back to you soon.",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isFromMe: true,
+        isFromMe: false,
+        type: "text",
+        isRead: true,
+        avatar: require("../../../assets/images/Convopal_logo.jpg"),
       };
-      setMessages(prev => [...prev, message]);
-      setNewMessage("");
-      
-      // Simulate reply after 1 second
-      setTimeout(() => {
-        const reply: Message = {
-          id: (Date.now() + 1).toString(),
-          text: "Thanks for your message! I'll get back to you soon.",
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isFromMe: false,
-          avatar: require("../../../assets/images/Convopal_logo.jpg"),
-        };
-        setMessages(prev => [...prev, reply]);
-      }, 1000);
-    }
+      setMessages(prev => [...prev, reply]);
+    }, 1000);
+  };
+
+  const handleSendImage = (imageUri: string) => {
+    const message: Message = {
+      id: Date.now().toString(),
+      imageUrl: imageUri,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isFromMe: true,
+      type: "image",
+      isRead: false,
+    };
+    setMessages(prev => [...prev, message]);
+  };
+
+  const handleSendVoice = (voiceUri: string, duration: number) => {
+    const message: Message = {
+      id: Date.now().toString(),
+      voiceDuration: duration,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isFromMe: true,
+      type: "voice",
+      isRead: false,
+    };
+    setMessages(prev => [...prev, message]);
+  };
+
+  const handleSendLocation = (location: { latitude: number; longitude: number; address: string }) => {
+    const message: Message = {
+      id: Date.now().toString(),
+      location: location,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isFromMe: true,
+      type: "location",
+      isRead: false,
+    };
+    setMessages(prev => [...prev, message]);
   };
 
   const handleBackPress = () => {
@@ -144,7 +186,15 @@ export default function ChatDetailScreen() {
       <FlatList
         data={messages}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <MessageItem message={item} />}
+        renderItem={({ item }) => (
+          <MessageBubble 
+            message={item}
+            onLongPress={() => console.log("Long press on message:", item.id)}
+            onImagePress={() => console.log("Image pressed:", item.imageUrl)}
+            onVoicePress={() => console.log("Voice pressed:", item.id)}
+            onLocationPress={() => console.log("Location pressed:", item.location)}
+          />
+        )}
         style={styles.messagesList}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
@@ -153,30 +203,13 @@ export default function ChatDetailScreen() {
       {/* Input */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.inputContainer}
       >
-        <View style={styles.inputWrapper}>
-          <TextInput
-            style={styles.textInput}
-            placeholder="Type a message..."
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
-            maxLength={500}
-            placeholderTextColor="#8E8E93"
-          />
-          <TouchableOpacity 
-            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]} 
-            onPress={handleSendMessage}
-            disabled={!newMessage.trim()}
-          >
-            <Ionicons 
-              name="send" 
-              size={20} 
-              color={newMessage.trim() ? "#07C160" : "#C6C6C8"} 
-            />
-          </TouchableOpacity>
-        </View>
+        <MessageInput
+          onSendMessage={handleSendMessage}
+          onSendImage={handleSendImage}
+          onSendVoice={handleSendVoice}
+          onSendLocation={handleSendLocation}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -231,86 +264,5 @@ const styles = StyleSheet.create({
   messagesContent: {
     paddingVertical: 16,
   },
-  messageContainer: {
-    flexDirection: "row",
-    marginHorizontal: 16,
-    marginVertical: 4,
-  },
-  myMessage: {
-    justifyContent: "flex-end",
-  },
-  otherMessage: {
-    justifyContent: "flex-start",
-  },
-  avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginRight: 8,
-    alignSelf: "flex-end",
-  },
-  messageBubble: {
-    maxWidth: "75%",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  myBubble: {
-    backgroundColor: "#07C160",
-    borderBottomRightRadius: 4,
-  },
-  otherBubble: {
-    backgroundColor: "white",
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  myMessageText: {
-    color: "white",
-  },
-  otherMessageText: {
-    color: "#000",
-  },
-  timestamp: {
-    fontSize: 11,
-    marginTop: 4,
-  },
-  myTimestamp: {
-    color: "rgba(255, 255, 255, 0.7)",
-    textAlign: "right",
-  },
-  otherTimestamp: {
-    color: "#8E8E93",
-  },
-  inputContainer: {
-    backgroundColor: "white",
-    borderTopWidth: 0.5,
-    borderTopColor: "#C6C6C8",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    backgroundColor: "#F2F2F7",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 16,
-    color: "#000",
-    maxHeight: 100,
-    paddingVertical: 4,
-  },
-  sendButton: {
-    marginLeft: 8,
-    padding: 8,
-  },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
+
 }); 

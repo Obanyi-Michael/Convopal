@@ -12,6 +12,7 @@ import {
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GroupChatCard } from "../../../src/components/GroupChatCard";
 
 // Type definitions
 interface Chat {
@@ -25,6 +26,12 @@ interface Chat {
   isPinned?: boolean;
   isMuted?: boolean;
   status?: 'online' | 'offline' | 'typing';
+  isGroup?: boolean;
+  members?: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+  }>;
 }
 
 // Mock data for chats
@@ -41,6 +48,22 @@ const mockChats: Chat[] = [
     status: 'online',
   },
   {
+    id: "group1",
+    name: "Family Group 👨‍👩‍👧‍👦",
+    lastMessage: "Mom: Don't forget about dinner tomorrow!",
+    time: "4:45",
+    unreadCount: 5,
+    avatar: "group",
+    isGroup: true,
+    isPinned: true,
+    members: [
+      { id: "mom", name: "Mom", avatar: "https://via.placeholder.com/50" },
+      { id: "dad", name: "Dad", avatar: "https://via.placeholder.com/50" },
+      { id: "sister", name: "Sarah", avatar: "https://via.placeholder.com/50" },
+      { id: "me", name: "Me", avatar: "https://via.placeholder.com/50" },
+    ],
+  },
+  {
     id: "2",
     name: "John Smith",
     lastMessage: "Hey, how are you doing?",
@@ -51,20 +74,45 @@ const mockChats: Chat[] = [
   },
   {
     id: "3",
-    name: "Work Group",
-    lastMessage: "Meeting at 3 PM today",
-    time: "1:45",
+    name: "Alice Johnson",
+    lastMessage: "Thanks for the help! 😊",
+    time: "Yesterday",
     unreadCount: 0,
     avatar: "https://via.placeholder.com/50",
-    isMuted: true,
+    status: 'online',
   },
   {
-    id: "4",
-    name: "Family Group",
-    lastMessage: "Dinner plans for tonight?",
+    id: "group2",
+    name: "Work Team 💼",
+    lastMessage: "Alice: Meeting rescheduled to 3 PM",
+    time: "1:45",
+    unreadCount: 2,
+    avatar: "group",
+    isGroup: true,
+    isOfficial: true,
+    isMuted: true,
+    members: [
+      { id: "alice", name: "Alice", avatar: "https://via.placeholder.com/50" },
+      { id: "bob", name: "Bob", avatar: "https://via.placeholder.com/50" },
+      { id: "carol", name: "Carol", avatar: "https://via.placeholder.com/50" },
+      { id: "david", name: "David", avatar: "https://via.placeholder.com/50" },
+      { id: "emma", name: "Emma", avatar: "https://via.placeholder.com/50" },
+    ],
+  },
+  {
+    id: "group3",
+    name: "Weekend Plans 🎉",
+    lastMessage: "Sarah: Who's up for hiking this Saturday?",
     time: "12:30",
-    unreadCount: 5,
-    avatar: "https://via.placeholder.com/50",
+    unreadCount: 8,
+    avatar: "group",
+    isGroup: true,
+    members: [
+      { id: "sarah", name: "Sarah", avatar: "https://via.placeholder.com/50" },
+      { id: "mike", name: "Mike", avatar: "https://via.placeholder.com/50" },
+      { id: "jenny", name: "Jenny", avatar: "https://via.placeholder.com/50" },
+      { id: "alex", name: "Alex", avatar: "https://via.placeholder.com/50" },
+    ],
   },
 ];
 
@@ -73,9 +121,27 @@ interface ChatItemProps {
   onPress: (chat: Chat) => void;
 }
 
-const ChatItem: React.FC<ChatItemProps> = ({ item, onPress }) => (
-  <TouchableOpacity style={styles.chatItem} onPress={() => onPress(item)}>
-    <View style={styles.avatarContainer}>
+const ChatItem: React.FC<ChatItemProps> = ({ item, onPress }) => {
+  if (item.isGroup && item.members) {
+    return (
+      <GroupChatCard
+        id={item.id}
+        name={item.name}
+        lastMessage={item.lastMessage}
+        time={item.time}
+        unreadCount={item.unreadCount}
+        members={item.members}
+        isOfficial={item.isOfficial}
+        isPinned={item.isPinned}
+        isMuted={item.isMuted}
+        onPress={() => onPress(item)}
+      />
+    );
+  }
+
+  return (
+    <TouchableOpacity style={styles.chatItem} onPress={() => onPress(item)}>
+      <View style={styles.avatarContainer}>
       <Image source={item.avatar} style={styles.avatar} />
       {item.status === 'online' && <View style={styles.onlineIndicator} />}
       {item.status === 'typing' && (
