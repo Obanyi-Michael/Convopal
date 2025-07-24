@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ProfileEditScreen() {
-  const [name, setName] = useState("John Doe");
+  const [name, setName] = useState("Emmanuel Asare");
   const [status, setStatus] = useState("Online");
   const [bio, setBio] = useState("Hello! I'm using ConvoPal.");
   const [phone, setPhone] = useState("+1 (555) 123-4567");
