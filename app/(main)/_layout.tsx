@@ -25,7 +25,7 @@ export default function MainLayout() {
         tabBarActiveTintColor: "#07C160",
         tabBarInactiveTintColor: "#8E8E93",
         tabBarStyle: {
-          backgroundColor: "#FFFFFF",
+          backgroundColor: "#fef9f9ff",
           borderTopWidth: 0,
           shadowColor: "#000",
           shadowOffset: {
@@ -36,16 +36,19 @@ export default function MainLayout() {
           shadowRadius: 8,
           elevation: 10,
           paddingBottom: Platform.OS === 'ios' ? 20 : 10,
-          paddingTop: 8,
+          paddingTop: 0,
           height: Platform.OS === 'ios' ? 88 : 70,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
-          marginTop: 4,
+          marginTop: 0,
+          marginRight: 7,
         },
         tabBarIconStyle: {
-          marginBottom: 2,
+          marginBottom: 0,
+          marginTop: 0,
+          marginRight: 7,
         },
         headerStyle: {
           backgroundColor: "#FFFFFF",

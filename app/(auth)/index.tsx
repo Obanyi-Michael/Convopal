@@ -123,7 +123,7 @@ export default function WelcomeScreen() {
               />
             </View>
             <Text style={styles.appName}>ConvoPal</Text>
-            <Text style={styles.tagline}>Connect • Share • Discover</Text>
+            <Text style={styles.tagline}>Connect • Share • Discover . Have Fun</Text>
           </Animated.View>
 
           {/* Content */}
