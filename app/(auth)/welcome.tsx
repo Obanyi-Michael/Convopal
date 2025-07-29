@@ -66,6 +66,12 @@ export default function WelcomeScreen() {
       {/* Header */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
         <Text style={styles.headerTitle}>ConvoPal Team</Text>
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: '100%' }]} />
+          </View>
+          <Text style={styles.progressText}>Step 3 of 3</Text>
+        </View>
         <TouchableOpacity style={styles.personButton} onPress={() => {
           console.log("Person button pressed");
         }}>
@@ -173,6 +179,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#000",
+  },
+  progressContainer: {
+    alignItems: "center",
+    flex: 1,
+  },
+  progressBar: {
+    width: "80%",
+    height: 8,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: "#07C160",
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    color: "#8E8E93",
   },
   personButton: {
     padding: 4,

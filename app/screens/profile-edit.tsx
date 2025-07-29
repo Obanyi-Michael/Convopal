@@ -24,6 +24,22 @@ export default function ProfileEditScreen() {
   };
 
   const handleSavePress = () => {
+    // Validate and trim data before saving
+    const trimmedName = name.trim();
+    const trimmedStatus = status.trim();
+    const trimmedBio = bio.trim();
+    
+    if (!trimmedName) {
+      Alert.alert("Error", "Name is required");
+      return;
+    }
+    
+    if (trimmedName.length < 2) {
+      Alert.alert("Error", "Name must be at least 2 characters");
+      return;
+    }
+    
+    // Save trimmed values
     Alert.alert("Success", "Profile updated successfully!");
     router.back();
   };

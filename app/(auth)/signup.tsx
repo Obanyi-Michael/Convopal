@@ -21,11 +21,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
+import { apiService } from "../../src/services/api";
 
 const { width } = Dimensions.get('window');
 
 interface ValidationErrors {
   fullName?: string;
+  username?: string;
   country?: string;
   phone?: string;
   password?: string;
@@ -232,11 +234,12 @@ const countries = [
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
-  const { signupData, setSignupData, clearSignupData } = useAuth();
+  const { signupData, setSignupData, clearSignupData, signup } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [isLoading, setIsLoading] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [connectionTested, setConnectionTested] = useState(false);
   
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -249,6 +252,19 @@ export default function SignupScreen() {
       ...signupData,
       [field]: value,
     });
+  };
+
+  // Helper function to suggest alternative usernames
+  const suggestAlternativeUsernames = (baseUsername: string): string[] => {
+    const suggestions = [];
+    const timestamp = Date.now().toString().slice(-4); // Last 4 digits of timestamp
+    
+    suggestions.push(`${baseUsername}${timestamp}`);
+    suggestions.push(`${baseUsername}_${timestamp}`);
+    suggestions.push(`${baseUsername}123`);
+    suggestions.push(`${baseUsername}_user`);
+    
+    return suggestions;
   };
 
   useEffect(() => {
@@ -266,7 +282,7 @@ export default function SignupScreen() {
         useNativeDriver: true,
       }),
       Animated.timing(progressAnim, {
-        toValue: 0.33,
+        toValue: 0.33, // Changed back to 0.33 since we now have 3 steps again
         duration: 1000,
         useNativeDriver: false,
       }),
@@ -274,12 +290,38 @@ export default function SignupScreen() {
   }, []);
 
   const validateForm = (): boolean => {
+    console.log('validateForm called with signupData:', signupData);
     const newErrors: ValidationErrors = {};
 
     if (!signupData.fullName.trim()) {
       newErrors.fullName = "Full name is required";
     } else if (signupData.fullName.length < 2) {
       newErrors.fullName = "Full name must be at least 2 characters";
+    }
+
+    if (!signupData.username.trim()) {
+      newErrors.username = "Username is required";
+    } else if (signupData.username.trim().length < 3) {
+      newErrors.username = "Username must be at least 3 characters";
+    } else {
+      const username = signupData.username.trim(); // Use trimmed version for validation
+      const usernameRegex = /^[a-zA-Z0-9_]+$/;
+      const isValid = usernameRegex.test(username);
+      
+      console.log('Username validation details:', {
+        originalUsername: signupData.username,
+        trimmedUsername: username,
+        length: username.length,
+        regex: usernameRegex.toString(),
+        isValid: isValid,
+        testResult: usernameRegex.test(username),
+        hasSpecialChars: /[^a-zA-Z0-9_]/.test(username),
+        charCodes: Array.from(username).map(c => c.charCodeAt(0))
+      });
+      
+      if (!isValid) {
+        newErrors.username = "Username can only contain letters, numbers, and underscores";
+      }
     }
 
     if (!signupData.country.trim()) {
@@ -305,6 +347,7 @@ export default function SignupScreen() {
       return false;
     }
 
+    console.log('Validation errors:', newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -327,24 +370,105 @@ export default function SignupScreen() {
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Test backend connection first (only if not recently tested)
+      // if (!connectionTested) {
+      //   console.log('Testing backend connection before signup...');
+      //   const isConnected = await apiService.testBackendConnection();
+      //   console.log('Backend connection test result:', isConnected);
+      //   setConnectionTested(true);
+        
+      //   if (!isConnected) {
+      //     Alert.alert("Connection Error", "Cannot connect to the server. Please check your network connection and try again.");
+      //     setIsLoading(false);
+      //     return;
+      //   }
+      // }
       
-      // Implement signup logic
-      console.log("Signup:", { 
-        fullName: signupData.fullName, 
-        country: signupData.country, 
-        phone: signupData.phone, 
-        password: signupData.password 
+      // Create a copy of signupData with trimmed values
+      const trimmedSignupData = {
+        ...signupData,
+        fullName: signupData.fullName.trim(),
+        username: signupData.username.trim(),
+        country: signupData.country.trim(),
+        phone: signupData.phone.trim(),
+        password: signupData.password
+      };
+      
+      console.log("Attempting signup with data:", {
+        fullName: trimmedSignupData.fullName,
+        username: trimmedSignupData.username,
+        country: trimmedSignupData.country,
+        phone: trimmedSignupData.phone,
+        password: "***" // Don't log password
       });
       
-      router.push("/(auth)/verification");
+      // Call the actual signup function from AuthContext
+      const result = await signup(trimmedSignupData);
+      // const response = await fetch("https://back-6lbs.onrender.com/api/v1/auth/signup", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify(trimmedSignupData),
+      // });
+
+      // let result = await response.json()
+      if (result.success) {
+        console.log("Signup successful!");
+        // Redirect to welcome screen for new users
+        router.replace("/(auth)/welcome");
+      } else {
+        console.log("Signup failed:", result.error);
+        
+        // Handle specific error cases
+        let errorMessage = result.error || "Please try again later.";
+        let alertTitle = "Signup Failed";
+        
+        if (result.error?.includes("Username already exists")) {
+          alertTitle = "Username Taken";
+          const suggestions = suggestAlternativeUsernames(signupData.username.trim());
+          
+          Alert.alert(
+            "Username Taken",
+            "This username is already taken. Would you like to use one of these suggestions?",
+            [
+              {
+                text: "Use Suggestion 1",
+                onPress: () => updateSignupData('username', suggestions[0])
+              },
+              {
+                text: "Use Suggestion 2", 
+                onPress: () => updateSignupData('username', suggestions[1])
+              },
+              {
+                text: "Use Suggestion 3",
+                onPress: () => updateSignupData('username', suggestions[2])
+              },
+              {
+                text: "Choose Different",
+                style: "cancel"
+              }
+            ]
+          );
+          return; // Don't show the default alert
+        } else if (result.error?.includes("Phone number already registered")) {
+          alertTitle = "Phone Number Registered";
+          errorMessage = "This phone number is already registered. Please use a different phone number or try logging in instead.";
+        } else if (result.error?.includes("Email already registered")) {
+          alertTitle = "Email Registered";
+          errorMessage = "This email is already registered. Please use a different email or try logging in instead.";
+        }
+        
+        Alert.alert(alertTitle, errorMessage);
+      }
     } catch (error) {
-      Alert.alert("Signup Failed", "Please try again later.");
+      console.error("Signup error:", error);
+      Alert.alert("Signup Failed", "Network error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleBack = () => {
     router.push("/(auth)");
@@ -353,6 +477,7 @@ export default function SignupScreen() {
   const handleSocialLogin = (provider: string) => {
     Alert.alert(`${provider} Signup`, `${provider} signup functionality will be implemented.`);
   };
+
 
   const passwordStrength = getPasswordStrength();
 
@@ -483,6 +608,35 @@ export default function SignupScreen() {
                 />
               </View>
               {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
+            </View>
+
+            {/* Username Input */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Username</Text>
+              <View style={[styles.inputContainer, errors.username && styles.inputError]}>
+                <Ionicons name="person" size={20} color="#8E8E93" />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Choose a username"
+                  value={signupData.username}
+                  onChangeText={(text) => {
+                    console.log('Username input changed:', {
+                      text: text,
+                      length: text.length,
+                      trimmed: text.trim(),
+                      hasSpecialChars: /[^a-zA-Z0-9_]/.test(text)
+                    });
+                    updateSignupData('username', text);
+                    if (errors.username) {
+                      setErrors({ ...errors, username: undefined });
+                    }
+                  }}
+                  placeholderTextColor="#8E8E93"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </View>
+              {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
             </View>
 
             {/* Country Input */}

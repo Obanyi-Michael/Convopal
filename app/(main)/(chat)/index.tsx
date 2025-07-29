@@ -12,6 +12,7 @@ import {
     View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+// import BackendTest from "../../../src/components/BackendTest";
 
 // Type definitions
 interface Chat {
@@ -158,6 +159,9 @@ export default function ChatsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Backend Test Component */}
+      {/* <BackendTest /> */}
+      
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>

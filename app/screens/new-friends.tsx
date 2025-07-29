@@ -22,14 +22,16 @@ export default function NewFriendsScreen() {
   };
 
   const handleSearchPress = () => {
-    if (searchQuery.trim()) {
-      Alert.alert("Search", `Searching for: ${searchQuery}`);
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) {
+      Alert.alert("Search", `Searching for: ${trimmedQuery}`);
     }
   };
 
   const handleAddByPhone = () => {
-    if (phoneNumber.trim()) {
-      Alert.alert("Add Friend", `Adding friend with phone: ${phoneNumber}`);
+    const trimmedPhone = phoneNumber.trim();
+    if (trimmedPhone) {
+      Alert.alert("Add Friend", `Adding friend with phone: ${trimmedPhone}`);
     }
   };
 

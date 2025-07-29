@@ -19,19 +19,19 @@ import {
     View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAuth } from "../../src/context/AuthContext";
 
 const { width } = Dimensions.get('window');
 
 interface ValidationErrors {
   username?: string;
-  phone?: string;
   password?: string;
 }
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { login } = useAuth();
   const [username, setUsername] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -71,19 +71,13 @@ export default function LoginScreen() {
 
     if (!username.trim()) {
       newErrors.username = "Username is required";
-    } else if (username.length < 3) {
+    } else if (username.trim().length < 3) {
       newErrors.username = "Username must be at least 3 characters";
-    }
-
-    if (!phone.trim()) {
-      newErrors.phone = "Phone number is required";
-    } else if (!/^\+?[\d\s-()]{10,}$/.test(phone)) {
-      newErrors.phone = "Please enter a valid phone number";
     }
 
     if (!password.trim()) {
       newErrors.password = "Password is required";
-    } else if (password.length < 6) {
+    } else if (password.trim().length < 6) {
       newErrors.password = "Password must be at least 6 characters";
     }
 
@@ -99,14 +93,17 @@ export default function LoginScreen() {
     setIsLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Send trimmed values to backend
+      const result = await login(username.trim(), password.trim());
       
-      // Implement login logic
-      console.log("Login:", { username, phone, password, rememberMe });
-      router.replace("/(main)/(chat)");
+      if (result.success) {
+        console.log("Login successful!");
+        router.replace("/(main)/(chat)");
+      } else {
+        Alert.alert("Login Failed", result.error || "Invalid credentials. Please try again.");
+      }
     } catch (error) {
-      Alert.alert("Login Failed", "Please check your credentials and try again.");
+      Alert.alert("Login Failed", "Network error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -115,7 +112,7 @@ export default function LoginScreen() {
   const handleForgotPassword = () => {
     Alert.alert(
       "Forgot Password",
-      "A password reset link will be sent to your phone number.",
+      "A password reset link will be sent to your registered email or phone number.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Send", onPress: () => console.log("Password reset sent") }
@@ -209,28 +206,6 @@ export default function LoginScreen() {
                 />
               </View>
               {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
-            </View>
-
-            {/* Phone Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Phone Number</Text>
-              <View style={[styles.inputContainer, errors.phone && styles.inputError]}>
-                <Ionicons name="call" size={20} color="#8E8E93" />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your phone number"
-                  value={phone}
-                  onChangeText={(text) => {
-                    setPhone(text);
-                    if (errors.phone) {
-                      setErrors({ ...errors, phone: undefined });
-                    }
-                  }}
-                  keyboardType="phone-pad"
-                  placeholderTextColor="#8E8E93"
-                />
-              </View>
-              {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
             </View>
 
             {/* Password Input */}
