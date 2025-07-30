@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
 const API_BASE_URL = 'https://back-6lbs.onrender.com/api/v1';
-const API_TIMEOUT = 10000; // 10 seconds
+const API_TIMEOUT = 30000; // 30 seconds
 
 // ------------------
 // API Response Types
@@ -88,65 +88,106 @@ class ApiService {
     }
   }
 
-  // Make HTTP request (FIXED VERSION)
+  // Make HTTP request with retry logic
   private async makeRequest<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    retries: number = 2
   ): Promise<ApiResponse<T>> {
-    try {
-      const token = await this.getAuthToken();
-      const url = `${this.baseURL}${endpoint}`;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const token = await this.getAuthToken();
+        const url = `${this.baseURL}${endpoint}`;
 
-      console.log('Making API request to:', url);
-      console.log('Request options:', options);
+        console.log(`Making API request to: ${url} (attempt ${attempt + 1}/${retries + 1})`);
+        console.log('Request options:', options);
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...(options.headers as Record<string, string>),
-      };
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(options.headers as Record<string, string>),
+        };
 
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
+        if (token) {
+          headers.Authorization = `Bearer ${token}`;
+        }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const response = await fetch(url, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
+        const response = await fetch(url, {
+          ...options,
+          headers,
+          signal: controller.signal,
+        });
 
-      clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-      const json = await response.json();
+        const json = await response.json();
 
-      console.log('API response status:', response.status);
-      console.log('API response body:', json);
+        console.log('API response status:', response.status);
+        console.log('API response body:', json);
 
-      if (!response.ok || json.success === false) {
-        const errorMessage = json.message || json.error || `HTTP ${response.status}`;
-        console.error('API request failed:', errorMessage);
+        if (!response.ok || json.success === false) {
+          const errorMessage = json.message || json.error || `HTTP ${response.status}`;
+          console.error('API request failed:', errorMessage);
+          return {
+            success: false,
+            error: errorMessage,
+            message: json.message,
+          };
+        }
+
         return {
-          success: false,
-          error: errorMessage,
+          success: true,
+          data: json.data,
           message: json.message,
         };
+      } catch (error) {
+        console.error(`API request failed (attempt ${attempt + 1}/${retries + 1}):`, error);
+        
+        // Handle specific error types
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            if (attempt === retries) {
+              return {
+                success: false,
+                error: 'Request timed out. Please check your internet connection and try again.',
+              };
+            }
+            console.log(`Request timed out, retrying... (${attempt + 1}/${retries + 1})`);
+            continue;
+          }
+          if (error.message.includes('Network request failed')) {
+            if (attempt === retries) {
+              return {
+                success: false,
+                error: 'Network error. Please check your internet connection.',
+              };
+            }
+            console.log(`Network error, retrying... (${attempt + 1}/${retries + 1})`);
+            continue;
+          }
+          return {
+            success: false,
+            error: error.message,
+          };
+        }
+        
+        if (attempt === retries) {
+          return {
+            success: false,
+            error: 'Unknown error occurred',
+          };
+        }
+        console.log(`Unknown error, retrying... (${attempt + 1}/${retries + 1})`);
       }
-
-      return {
-        success: true,
-        data: json.data,
-        message: json.message,
-      };
-    } catch (error) {
-      console.error('API request failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      };
     }
+    
+    return {
+      success: false,
+      error: 'All retry attempts failed',
+    };
   }
 
   // -------------------
@@ -175,10 +216,19 @@ class ApiService {
   }
 
   async login(request: LoginRequest): Promise<ApiResponse<AuthResponse>> {
+    console.log('Login request:', { usernameOrPhone: request.usernameOrPhone, password: '***' });
+    
+    // First test the connection
+    console.log('Testing connection before login...');
+    const healthTest = await this.healthCheck();
+    console.log('Health test result:', healthTest);
+    
     const response = await this.makeRequest<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(request),
     });
+
+    console.log('Login response:', response);
 
     if (response.success && response.data) {
       await this.setAuthToken(response.data.accessToken);
@@ -291,7 +341,10 @@ class ApiService {
   // ---------------------
 
   async healthCheck(): Promise<ApiResponse<any>> {
-    return await this.makeRequest<any>('/auth/health');
+    console.log('Testing health check endpoint...');
+    const response = await this.makeRequest<any>('/auth/health');
+    console.log('Health check result:', response);
+    return response;
   }
 
   async testConnectivity(): Promise<ApiResponse<any>> {

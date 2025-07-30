@@ -638,7 +638,10 @@ export default function SignupScreen() {
                 <Ionicons name="location" size={20} color="#8E8E93" />
                 <Picker
                   selectedValue={signupData.country}
-                  style={{ flex: 1, color: '#000', marginLeft: 12 }}
+                  style={[
+                    styles.picker,
+                    !signupData.country && Platform.OS === 'ios' && styles.pickerPlaceholder
+                  ]}
                   onValueChange={(itemValue: string, itemIndex: number) => {
                     updateSignupData('country', itemValue);
                     if (errors.country) {
@@ -646,12 +649,22 @@ export default function SignupScreen() {
                     }
                   }}
                   dropdownIconColor="#8E8E93"
+                  itemStyle={Platform.OS === 'ios' ? styles.pickerItem : undefined}
+                  mode={Platform.OS === 'ios' ? 'dropdown' : 'dialog'}
                 >
-                  <Picker.Item label="Select your country" value="" />
+                  <Picker.Item label="Select your country" value="" color="#8E8E93" />
                   {countries.map((country) => (
-                    <Picker.Item key={country.code + country.name} label={`${country.name} (${country.code})`} value={country.name} />
+                    <Picker.Item 
+                      key={country.code + country.name} 
+                      label={`${country.name} (${country.code})`} 
+                      value={country.name}
+                      color={Platform.OS === 'ios' ? '#000' : undefined}
+                    />
                   ))}
                 </Picker>
+                {Platform.OS === 'ios' && (
+                  <Ionicons name="chevron-down" size={16} color="#8E8E93" style={styles.pickerChevron} />
+                )}
               </View>
               {errors.country && <Text style={styles.errorText}>{errors.country}</Text>}
             </View>
@@ -885,12 +898,35 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    ...(Platform.OS === 'ios' && {
+      minHeight: 50,
+      justifyContent: 'space-between',
+    }),
   },
   input: {
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
     color: "#000",
+  },
+  picker: {
+    flex: 1,
+    marginLeft: 12,
+    color: '#000',
+    ...(Platform.OS === 'ios' && {
+      height: 50,
+      fontSize: 16,
+    }),
+  },
+  pickerItem: {
+    fontSize: 16,
+    color: '#000',
+  },
+  pickerChevron: {
+    marginLeft: 8,
+  },
+  pickerPlaceholder: {
+    color: '#8E8E93',
   },
   infoButton: {
     padding: 4,

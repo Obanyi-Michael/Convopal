@@ -15,8 +15,8 @@ interface User {
   fullName: string;
   username: string;
   phone: string;
-  email?: string;
-  avatarUrl?: string;
+  email: string | null;
+  avatarUrl: string | null;
   isVerified: boolean;
 }
 

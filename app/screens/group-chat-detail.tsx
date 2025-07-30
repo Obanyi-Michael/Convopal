@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import React, { useState, useEffect, useRef } from "react";
 import {
     FlatList,
@@ -13,7 +13,8 @@ import {
     View,
     Alert,
     ActivityIndicator,
-    RefreshControl
+    RefreshControl,
+    Dimensions
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
@@ -87,30 +88,91 @@ export default function GroupChatDetailScreen() {
 
   const groupIdNum = parseInt(groupId || "0");
 
+  // Get screen dimensions for better keyboard handling
+  const screenHeight = Dimensions.get('window').height;
+  const isSmallDevice = screenHeight < 700;
+  const isMediumDevice = screenHeight >= 700 && screenHeight < 800;
+  const isLargeDevice = screenHeight >= 800;
+
+  // Polling interval for real-time updates (5 seconds)
+  const POLLING_INTERVAL = 5000;
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useEffect(() => {
     if (user && groupIdNum > 0) {
       loadMessages();
       // Mark messages as read when entering the chat
       markGroupMessagesAsRead(groupIdNum);
+      
+      // Start polling for new messages
+      startPolling();
     }
+
+    return () => {
+      // Clean up polling when component unmounts
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
   }, [user, groupIdNum]);
 
-  const loadMessages = async () => {
+  // Add focus listener to refresh messages when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user && groupIdNum > 0) {
+        loadMessages(true);
+        markGroupMessagesAsRead(groupIdNum);
+      }
+    }, [user, groupIdNum])
+  );
+
+  const startPolling = () => {
+    // Clear any existing polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
+    
+    // Start new polling interval
+    pollingRef.current = setInterval(() => {
+      if (user && groupIdNum > 0) {
+        loadMessages(false); // Don't show loading state for polling updates
+      }
+    }, POLLING_INTERVAL);
+  };
+
+  const loadMessages = async (showLoading: boolean = true) => {
     if (!user || groupIdNum <= 0) return;
     
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
+    
     try {
       const response = await getGroupMessages(groupIdNum, 0, 50);
       if (response.success && response.data) {
-        setMessages(response.data);
+        // Only update if messages have changed to avoid unnecessary re-renders
+        setMessages(prevMessages => {
+          const newMessages = response.data;
+          // Check if messages have actually changed
+          if (JSON.stringify(prevMessages) !== JSON.stringify(newMessages)) {
+            return newMessages;
+          }
+          return prevMessages;
+        });
       } else {
-        Alert.alert("Error", response.error || "Failed to load messages");
+        if (showLoading) {
+          Alert.alert("Error", response.error || "Failed to load messages");
+        }
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to load messages");
+      if (showLoading) {
+        Alert.alert("Error", "Failed to load messages");
+      }
       console.error(error);
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -141,7 +203,7 @@ export default function GroupChatDetailScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadMessages();
+    await loadMessages(true);
     setRefreshing(false);
   };
 
@@ -201,16 +263,31 @@ export default function GroupChatDetailScreen() {
         style={styles.messagesList}
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() => {
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 50);
+        }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        removeClippedSubviews={false}
+        maxToRenderPerBatch={10}
+        windowSize={10}
       />
 
       {/* Input */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={
+          Platform.OS === "ios" 
+            ? (isSmallDevice ? 60 : isMediumDevice ? 80 : 100)
+            : (isSmallDevice ? 0 : isMediumDevice ? 20 : 40)
+        }
         style={styles.inputContainer}
+        enabled={true}
       >
         <View style={styles.inputWrapper}>
           <TextInput
@@ -380,6 +457,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#C6C6C8",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    minHeight: 60,
   },
   inputWrapper: {
     flexDirection: "row",
@@ -388,6 +466,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    minHeight: 44,
+    maxHeight: 120,
   },
   textInput: {
     flex: 1,
@@ -395,6 +475,7 @@ const styles = StyleSheet.create({
     color: "#000",
     maxHeight: 100,
     paddingVertical: 4,
+    includeFontPadding: false,
   },
   sendButton: {
     marginLeft: 8,

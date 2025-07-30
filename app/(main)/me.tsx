@@ -12,8 +12,8 @@ import {
     ActivityIndicator
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../../../src/context/AuthContext";
-import { useTheme } from "../../../src/context/ThemeContext";
+import { useAuth } from "../../src/context/AuthContext";
+import { useTheme } from "../../src/context/ThemeContext";
 
 interface StatItemProps {
   icon: keyof typeof Ionicons.glyphMap;

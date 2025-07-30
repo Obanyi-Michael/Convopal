@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import React, { useState, useEffect } from "react";
 import {
     FlatList,
@@ -100,6 +100,15 @@ export default function ChatsScreen() {
       loadChats();
     }
   }, [user]);
+
+  // Add focus listener to refresh chats when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (user) {
+        loadChats();
+      }
+    }, [user])
+  );
 
   const loadChats = async () => {
     if (!user) return;

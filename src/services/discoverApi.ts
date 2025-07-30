@@ -113,7 +113,7 @@ class DiscoverApiService {
       },
       {
         id: '3',
-        title: 'Ghana's Digital Economy Grows 15%',
+        title: 'Ghana\'s Digital Economy Grows 15%',
         description: 'E-commerce and fintech sectors lead the growth',
         content: 'Ghana\'s digital economy has shown remarkable growth with a 15% increase...',
         url: 'https://example.com/news3',
@@ -127,9 +127,11 @@ class DiscoverApiService {
   // Get featured content (trending news + events)
   async getFeaturedContent(): Promise<FeaturedContent[]> {
     try {
+      console.log('DiscoverApiService: Getting featured content');
       const news = await this.getTrendingNews();
+      console.log('DiscoverApiService: Got trending news:', news.length, 'articles');
       
-      return news.slice(0, 3).map((article, index) => ({
+      const featured = news.slice(0, 3).map((article, index) => ({
         id: article.id,
         title: this.getFeaturedTitle(article.title),
         subtitle: article.description.substring(0, 60) + '...',
@@ -139,9 +141,14 @@ class DiscoverApiService {
         url: article.url,
         type: 'news' as const
       }));
+
+      console.log('DiscoverApiService: Generated featured content:', featured.length, 'items');
+      return featured;
     } catch (error) {
-      console.error('Failed to get featured content:', error);
-      return this.getFallbackFeaturedContent();
+      console.error('DiscoverApiService: Failed to get featured content:', error);
+      const fallback = this.getFallbackFeaturedContent();
+      console.log('DiscoverApiService: Using fallback featured content:', fallback.length, 'items');
+      return fallback;
     }
   }
 
@@ -206,6 +213,7 @@ class DiscoverApiService {
 
   // Get local events (simulated for now)
   async getLocalEvents(): Promise<LocalEvent[]> {
+    console.log('DiscoverApiService: Getting local events');
     // Simulate local events based on current trends
     const events = [
       {
@@ -240,16 +248,20 @@ class DiscoverApiService {
       }
     ];
 
+    console.log('DiscoverApiService: Generated local events:', events.length, 'items');
     return events;
   }
 
   // Get dynamic recommendations based on trending topics
   async getRecommendations(): Promise<Recommendation[]> {
     try {
+      console.log('DiscoverApiService: Getting recommendations');
       const news = await this.getTrendingNews();
+      console.log('DiscoverApiService: Got news for recommendations:', news.length, 'articles');
       const categories = this.extractCategoriesFromNews(news);
+      console.log('DiscoverApiService: Extracted categories:', categories);
       
-      return categories.map((category, index) => ({
+      const recommendations = categories.map((category, index) => ({
         id: `rec-${index + 1}`,
         title: this.generateGroupTitle(category),
         members: Math.floor(Math.random() * 2000) + 100,
@@ -259,9 +271,14 @@ class DiscoverApiService {
         category: category,
         trending: Math.random() > 0.5 // 50% chance of trending
       }));
+
+      console.log('DiscoverApiService: Generated recommendations:', recommendations.length, 'items');
+      return recommendations;
     } catch (error) {
-      console.error('Failed to get recommendations:', error);
-      return this.getFallbackRecommendations();
+      console.error('DiscoverApiService: Failed to get recommendations:', error);
+      const fallback = this.getFallbackRecommendations();
+      console.log('DiscoverApiService: Using fallback recommendations:', fallback.length, 'items');
+      return fallback;
     }
   }
 
@@ -371,6 +388,7 @@ class DiscoverApiService {
 
   // Get categories with dynamic counts
   async getCategories(): Promise<Category[]> {
+    console.log('DiscoverApiService: Getting categories');
     const categories = [
       { id: "1", name: "Technology", icon: "laptop", color: "#FF6B6B" },
       { id: "2", name: "Sports", icon: "football", color: "#4ECDC4" },
@@ -383,10 +401,13 @@ class DiscoverApiService {
     ];
 
     // Add dynamic counts based on trending topics
-    return categories.map(category => ({
+    const categoriesWithCounts = categories.map(category => ({
       ...category,
       count: Math.floor(Math.random() * 500) + 50
     }));
+
+    console.log('DiscoverApiService: Generated categories:', categoriesWithCounts.length, 'items');
+    return categoriesWithCounts;
   }
 }
 
