@@ -203,7 +203,7 @@ class ApiService {
   }
 
   async getCurrentUser(): Promise<ApiResponse<any>> {
-    return await this.makeRequest<any>('/auth/validate');
+    return await this.makeRequest<any>('/profile/me');
   }
 
   // -----------------

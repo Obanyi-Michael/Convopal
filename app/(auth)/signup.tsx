@@ -403,19 +403,8 @@ export default function SignupScreen() {
       });
       
       // Call the actual signup function from AuthContext
-      // const result = await signup(trimmedSignupData);
-      const response = await fetch('https://back-6lbs.onrender.com/api/v1/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(trimmedSignupData),
-      }); 
-
-      const result = await response.json();
-      console.log("Signup response:", result);
-
-      // let result = await response.json()
+      const result = await signup(trimmedSignupData);
+      
       if (result.success) {
         console.log("Signup successful!");
         // Redirect to welcome screen for new users
