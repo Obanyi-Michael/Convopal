@@ -98,6 +98,7 @@ class ApiService {
       const url = `${this.baseURL}${endpoint}`;
 
       console.log('Making API request to:', url);
+      console.log('Request options:', options);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -126,6 +127,7 @@ class ApiService {
 
       if (!response.ok || json.success === false) {
         const errorMessage = json.message || json.error || `HTTP ${response.status}`;
+        console.error('API request failed:', errorMessage);
         return {
           success: false,
           error: errorMessage,

@@ -175,7 +175,7 @@ export default function ContactsScreen() {
   const handleContactPress = (contact: Contact) => {
     router.push({
       pathname: "/(main)/(chat)/[id]",
-      params: { id: contact.contact.id.toString(), name: contact.contact.fullName }
+      params: { id: contact.contact.username, name: contact.contact.fullName }
     });
   };
 

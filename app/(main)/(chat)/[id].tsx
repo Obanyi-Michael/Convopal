@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../src/context/AuthContext";
+import { Colors } from "../../../src/constants/Colors";
 
 interface Message {
   id: number;
@@ -103,15 +104,19 @@ export default function ChatDetailScreen() {
     
     setLoading(true);
     try {
+      console.log('Loading messages for conversation with:', otherUsername);
       const response = await getConversation(otherUsername, 0, 50);
+      console.log('Load messages response:', response);
+      
       if (response.success && response.data) {
         setMessages(response.data);
       } else {
+        console.error('Load messages failed:', response.error);
         Alert.alert("Error", response.error || "Failed to load messages");
       }
     } catch (error) {
+      console.error('Load messages error:', error);
       Alert.alert("Error", "Failed to load messages");
-      console.error(error);
     } finally {
       setLoading(false);
     }
@@ -122,7 +127,12 @@ export default function ChatDetailScreen() {
     
     setSending(true);
     try {
+      console.log('Sending message to:', otherUsername);
+      console.log('Message content:', newMessage.trim());
+      
       const response = await sendMessage(otherUsername, newMessage.trim(), 'TEXT');
+      console.log('Send message response:', response);
+      
       if (response.success && response.data) {
         // Add the new message to the list
         setMessages(prev => [...prev, response.data]);
@@ -132,11 +142,12 @@ export default function ChatDetailScreen() {
           flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
       } else {
+        console.error('Send message failed:', response.error);
         Alert.alert("Error", response.error || "Failed to send message");
       }
     } catch (error) {
+      console.error('Send message error:', error);
       Alert.alert("Error", "Failed to send message");
-      console.error(error);
     } finally {
       setSending(false);
     }
@@ -226,12 +237,12 @@ export default function ChatDetailScreen() {
             disabled={!newMessage.trim() || sending}
           >
             {sending ? (
-              <ActivityIndicator size="small" color="#07C160" />
+              <ActivityIndicator size="small" color={Colors.backgroundLight} />
             ) : (
               <Ionicons 
                 name="send" 
-                size={20} 
-                color={newMessage.trim() ? "#07C160" : "#C6C6C8"} 
+                size={18} 
+                color={newMessage.trim() ? Colors.backgroundLight : Colors.textSecondary} 
               />
             )}
           </TouchableOpacity>
@@ -366,33 +377,68 @@ const styles = StyleSheet.create({
     color: "#8E8E93",
   },
   inputContainer: {
-    backgroundColor: "white",
-    borderTopWidth: 0.5,
-    borderTopColor: "#C6C6C8",
+    backgroundColor: Colors.backgroundLight,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 8,
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "flex-end",
-    backgroundColor: "#F2F2F7",
-    borderRadius: 20,
+    backgroundColor: Colors.backgroundLight,
+    borderRadius: 24,
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: "#000",
+    color: Colors.textPrimary,
     maxHeight: 100,
-    paddingVertical: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 0,
+    lineHeight: 20,
   },
   sendButton: {
-    marginLeft: 8,
-    padding: 8,
+    marginLeft: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sendButtonDisabled: {
-    opacity: 0.5,
+    backgroundColor: Colors.borderLight,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   loadingContainer: {
     flex: 1,
