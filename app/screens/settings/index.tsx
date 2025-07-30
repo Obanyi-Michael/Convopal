@@ -11,6 +11,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "../../../src/context/ThemeContext";
 
 interface SettingsItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -34,45 +35,53 @@ const SettingsItem: React.FC<SettingsItemProps> = ({
   onSwitchChange = null,
   showBadge = false,
   iconColor = "#07C160"
-}) => (
-  <TouchableOpacity style={styles.settingsItem} onPress={onPress}>
-    <View style={styles.itemLeft}>
-      <View style={[styles.iconContainer, { backgroundColor: "#F0F0F0" }]}>
-        <Ionicons name={icon} size={24} color={iconColor} />
+}) => {
+  const { colors } = useTheme();
+  
+  return (
+    <TouchableOpacity style={[styles.settingsItem, { borderBottomColor: colors.borderLight }]} onPress={onPress}>
+      <View style={styles.itemLeft}>
+        <View style={[styles.iconContainer, { backgroundColor: colors.surfaceLight }]}>
+          <Ionicons name={icon} size={24} color={iconColor} />
+        </View>
+        <View style={styles.itemContent}>
+          <Text style={[styles.itemTitle, { color: colors.textPrimary }]}>{title}</Text>
+          {subtitle && <Text style={[styles.itemSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
+        </View>
       </View>
-      <View style={styles.itemContent}>
-        <Text style={styles.itemTitle}>{title}</Text>
-        {subtitle && <Text style={styles.itemSubtitle}>{subtitle}</Text>}
+      <View style={styles.itemRight}>
+        {showBadge && <View style={[styles.badge, { backgroundColor: colors.error }]} />}
+        {showSwitch ? (
+          <Switch
+            value={switchValue}
+            onValueChange={onSwitchChange}
+            trackColor={{ false: colors.borderLight, true: colors.success }}
+            thumbColor={colors.textLight}
+          />
+        ) : (
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        )}
       </View>
-    </View>
-    <View style={styles.itemRight}>
-      {showBadge && <View style={styles.badge} />}
-      {showSwitch ? (
-        <Switch
-          value={switchValue}
-          onValueChange={onSwitchChange}
-          trackColor={{ false: "#E5E5EA", true: "#07C160" }}
-          thumbColor="#FFFFFF"
-        />
-      ) : (
-        <Ionicons name="chevron-forward" size={20} color="#C6C6C8" />
-      )}
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
+};
 
 interface SectionHeaderProps {
   title: string;
 }
 
-const SectionHeader: React.FC<SectionHeaderProps> = ({ title }) => (
-  <View style={styles.sectionHeader}>
-    <Text style={styles.sectionTitle}>{title}</Text>
-  </View>
-);
+const SectionHeader: React.FC<SectionHeaderProps> = ({ title }) => {
+  const { colors } = useTheme();
+  
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text>
+    </View>
+  );
+};
 
 export default function SettingsScreen() {
-  const [darkMode, setDarkMode] = useState(false);
+  const { colors, isDarkMode, setTheme } = useTheme();
   const [notifications, setNotifications] = useState(true);
   const [autoReply, setAutoReply] = useState(false);
   const [readReceipts, setReadReceipts] = useState(true);
@@ -105,35 +114,48 @@ export default function SettingsScreen() {
     Alert.alert("About ConvoPal", "Version 1.0.0\n\nConvoPal is a modern messaging app designed for seamless communication.");
   };
 
+  const handleDarkModeToggle = (value: boolean) => {
+    setTheme(value);
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { 
+        backgroundColor: colors.card,
+        borderBottomColor: colors.borderLight
+      }]}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Ionicons name="chevron-back" size={24} color="#000" />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Settings</Text>
         <View style={styles.headerRight} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Appearance */}
         <SectionHeader title="Appearance" />
-        <View style={styles.section}>
+        <View style={[styles.section, { 
+          backgroundColor: colors.card,
+          shadowColor: colors.cardShadow
+        }]}>
           <SettingsItem
             icon="moon"
             title="Dark Mode"
             subtitle="Switch to dark theme"
             showSwitch={true}
-            switchValue={darkMode}
-            onSwitchChange={setDarkMode}
+            switchValue={isDarkMode}
+            onSwitchChange={handleDarkModeToggle}
             iconColor="#8B5CF6"
           />
         </View>
 
         {/* Notifications */}
         <SectionHeader title="Notifications" />
-        <View style={styles.section}>
+        <View style={[styles.section, { 
+          backgroundColor: colors.card,
+          shadowColor: colors.cardShadow
+        }]}>
           <SettingsItem
             icon="notifications"
             title="Push Notifications"
@@ -143,7 +165,7 @@ export default function SettingsScreen() {
             onSwitchChange={setNotifications}
             iconColor="#FF9500"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="chatbubble"
             title="Message Notifications"
@@ -153,7 +175,7 @@ export default function SettingsScreen() {
             onSwitchChange={setNotifications}
             iconColor="#07C160"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="people"
             title="Group Notifications"
@@ -167,7 +189,10 @@ export default function SettingsScreen() {
 
         {/* Privacy & Security */}
         <SectionHeader title="Privacy & Security" />
-        <View style={styles.section}>
+        <View style={[styles.section, { 
+          backgroundColor: colors.card,
+          shadowColor: colors.cardShadow
+        }]}>
           <SettingsItem
             icon="shield-checkmark"
             title="Privacy"
@@ -175,7 +200,7 @@ export default function SettingsScreen() {
             onPress={handlePrivacyPress}
             iconColor="#34C759"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="lock-closed"
             title="Security"
@@ -183,7 +208,7 @@ export default function SettingsScreen() {
             onPress={handleSecurityPress}
             iconColor="#FF3B30"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="eye"
             title="Visibility"
@@ -191,7 +216,7 @@ export default function SettingsScreen() {
             onPress={handleVisibilityPress}
             iconColor="#007AFF"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="checkmark-circle"
             title="Read Receipts"
@@ -205,7 +230,10 @@ export default function SettingsScreen() {
 
         {/* Chat Settings */}
         <SectionHeader title="Chat Settings" />
-        <View style={styles.section}>
+        <View style={[styles.section, { 
+          backgroundColor: colors.card,
+          shadowColor: colors.cardShadow
+        }]}>
           <SettingsItem
             icon="chatbubble-ellipses"
             title="Auto Reply"
@@ -215,7 +243,7 @@ export default function SettingsScreen() {
             onSwitchChange={setAutoReply}
             iconColor="#FF6B9D"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="language"
             title="Language"
@@ -227,7 +255,10 @@ export default function SettingsScreen() {
 
         {/* Support */}
         <SectionHeader title="Support" />
-        <View style={styles.section}>
+        <View style={[styles.section, { 
+          backgroundColor: colors.card,
+          shadowColor: colors.cardShadow
+        }]}>
           <SettingsItem
             icon="help-circle"
             title="Help & Feedback"
@@ -235,7 +266,7 @@ export default function SettingsScreen() {
             onPress={handleHelpPress}
             iconColor="#007AFF"
           />
-          <View style={styles.separator} />
+          <View style={[styles.separator, { backgroundColor: colors.borderLight }]} />
           <SettingsItem
             icon="information-circle"
             title="About ConvoPal"
@@ -254,7 +285,6 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
   },
   header: {
     flexDirection: "row",
@@ -262,9 +292,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "white",
     borderBottomWidth: 0.5,
-    borderBottomColor: "#C6C6C8",
   },
   backButton: {
     width: 40,
@@ -273,7 +301,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#000",
   },
   headerRight: {
     width: 40,
@@ -289,15 +316,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#8E8E93",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   section: {
-    backgroundColor: "white",
     marginHorizontal: 16,
     borderRadius: 12,
-    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 1,
@@ -311,6 +335,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 16,
+    borderBottomWidth: 0.5,
   },
   itemLeft: {
     flexDirection: "row",
@@ -331,11 +356,9 @@ const styles = StyleSheet.create({
   itemTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#000",
   },
   itemSubtitle: {
     fontSize: 14,
-    color: "#8E8E93",
     marginTop: 2,
   },
   itemRight: {
@@ -346,12 +369,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#FF3B30",
     marginRight: 8,
   },
   separator: {
     height: 0.5,
-    backgroundColor: "#C6C6C8",
     marginLeft: 68,
   },
   bottomSpacing: {

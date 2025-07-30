@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../src/context/AuthContext";
-import { Colors } from "../../../src/constants/Colors";
+import { useTheme } from "../../../src/context/ThemeContext";
 
 interface Message {
   id: number;
@@ -45,6 +45,8 @@ interface MessageItemProps {
 }
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, isFromMe }) => {
+  const { colors } = useTheme();
+  
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -61,17 +63,23 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isFromMe }) => {
           {message.sender.avatarUrl ? (
             <Image source={{ uri: message.sender.avatarUrl }} style={styles.avatar} />
           ) : (
-            <View style={styles.defaultAvatar}>
-              <Text style={styles.avatarText}>{getInitials(message.sender.fullName)}</Text>
+            <View style={[styles.defaultAvatar, { backgroundColor: colors.success }]}>
+              <Text style={[styles.avatarText, { color: colors.textLight }]}>{getInitials(message.sender.fullName)}</Text>
             </View>
           )}
         </View>
       )}
-      <View style={[styles.messageBubble, isFromMe ? styles.myBubble : styles.otherBubble]}>
-        <Text style={[styles.messageText, isFromMe ? styles.myMessageText : styles.otherMessageText]}>
+      <View style={[styles.messageBubble, isFromMe ? styles.myBubble : styles.otherBubble, 
+        isFromMe ? { backgroundColor: colors.success } : { backgroundColor: colors.card }
+      ]}>
+        <Text style={[styles.messageText, isFromMe ? styles.myMessageText : styles.otherMessageText, 
+          isFromMe ? { color: colors.textLight } : { color: colors.textPrimary }
+        ]}>
           {message.content}
         </Text>
-        <Text style={[styles.timestamp, isFromMe ? styles.myTimestamp : styles.otherTimestamp]}>
+        <Text style={[styles.timestamp, isFromMe ? styles.myTimestamp : styles.otherTimestamp, 
+          isFromMe ? { color: 'rgba(255, 255, 255, 0.7)' } : { color: colors.textSecondary }
+        ]}>
           {formatTime(message.createdAt)}
         </Text>
       </View>
@@ -87,6 +95,7 @@ export default function ChatDetailScreen() {
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const { user, getConversation, sendMessage, markMessagesAsRead } = useAuth();
+  const { colors } = useTheme();
 
   // Get the username from the contact ID (assuming the ID is the username)
   const otherUsername = id;
@@ -168,35 +177,38 @@ export default function ChatDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#07C160" />
-          <Text style={styles.loadingText}>Loading messages...</Text>
+          <ActivityIndicator size="large" color={colors.success} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading messages...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { 
+        backgroundColor: colors.card,
+        borderBottomColor: colors.borderLight
+      }]}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackPress}>
-          <Ionicons name="chevron-back" size={24} color="#000" />
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <View style={styles.headerAvatar}>
-            <Text style={styles.headerAvatarText}>
+          <View style={[styles.headerAvatar, { backgroundColor: colors.success }]}>
+            <Text style={[styles.headerAvatarText, { color: colors.textLight }]}>
               {name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
             </Text>
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.headerName}>{name || "User"}</Text>
-            <Text style={styles.headerStatus}>Online</Text>
+            <Text style={[styles.headerName, { color: colors.textPrimary }]}>{name || "User"}</Text>
+            <Text style={[styles.headerStatus, { color: colors.success }]}>Online</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton} onPress={handleMorePress}>
-          <Ionicons name="ellipsis-vertical" size={24} color="#000" />
+          <Ionicons name="ellipsis-vertical" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
@@ -218,31 +230,39 @@ export default function ChatDetailScreen() {
       {/* Input */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.inputContainer}
+        style={[styles.inputContainer, { 
+          backgroundColor: colors.card,
+          borderTopColor: colors.borderLight
+        }]}
       >
-        <View style={styles.inputWrapper}>
+        <View style={[styles.inputWrapper, { 
+          backgroundColor: colors.inputBackground,
+          borderColor: colors.inputBorder
+        }]}>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { color: colors.textPrimary }]}
             placeholder="Type a message..."
             value={newMessage}
             onChangeText={setNewMessage}
             multiline
             maxLength={500}
-            placeholderTextColor="#8E8E93"
+            placeholderTextColor={colors.inputPlaceholder}
             editable={!sending}
           />
           <TouchableOpacity 
-            style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]} 
+            style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled, 
+              { backgroundColor: newMessage.trim() ? colors.success : colors.borderLight }
+            ]} 
             onPress={handleSendMessage}
             disabled={!newMessage.trim() || sending}
           >
             {sending ? (
-              <ActivityIndicator size="small" color={Colors.backgroundLight} />
+              <ActivityIndicator size="small" color={colors.textLight} />
             ) : (
               <Ionicons 
                 name="send" 
                 size={18} 
-                color={newMessage.trim() ? Colors.backgroundLight : Colors.textSecondary} 
+                color={newMessage.trim() ? colors.textLight : colors.textSecondary} 
               />
             )}
           </TouchableOpacity>
@@ -255,16 +275,13 @@ export default function ChatDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F2F2F7",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "white",
     borderBottomWidth: 0.5,
-    borderBottomColor: "#C6C6C8",
   },
   backButton: {
     marginRight: 12,
@@ -279,12 +296,10 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 12,
-    backgroundColor: "#07C160", // Placeholder for avatar background
     justifyContent: "center",
     alignItems: "center",
   },
   headerAvatarText: {
-    color: "white",
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -294,11 +309,9 @@ const styles = StyleSheet.create({
   headerName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#000",
   },
   headerStatus: {
     fontSize: 12,
-    color: "#07C160",
   },
   moreButton: {
     marginLeft: 12,
@@ -332,12 +345,10 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#07C160",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
-    color: "white",
     fontSize: 14,
     fontWeight: "bold",
   },
@@ -348,11 +359,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   myBubble: {
-    backgroundColor: "#07C160",
     borderBottomRightRadius: 4,
   },
   otherBubble: {
-    backgroundColor: "white",
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -360,29 +369,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   myMessageText: {
-    color: "white",
   },
   otherMessageText: {
-    color: "#000",
   },
   timestamp: {
     fontSize: 11,
     marginTop: 4,
   },
   myTimestamp: {
-    color: "rgba(255, 255, 255, 0.7)",
     textAlign: "right",
   },
   otherTimestamp: {
-    color: "#8E8E93",
   },
   inputContainer: {
-    backgroundColor: Colors.backgroundLight,
     borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    shadowColor: Colors.shadow,
+    shadowColor: "rgba(0, 0, 0, 0.1)",
     shadowOffset: {
       width: 0,
       height: -2,
@@ -394,13 +397,11 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: "row",
     alignItems: "flex-end",
-    backgroundColor: Colors.backgroundLight,
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
-    shadowColor: Colors.shadow,
+    shadowColor: "rgba(0, 0, 0, 0.1)",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -412,7 +413,6 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: Colors.textPrimary,
     maxHeight: 100,
     paddingVertical: 6,
     paddingHorizontal: 0,
@@ -423,10 +423,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: Colors.shadow,
+    shadowColor: "rgba(0, 0, 0, 0.2)",
     shadowOffset: {
       width: 0,
       height: 2,
@@ -436,7 +435,6 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: Colors.borderLight,
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -444,11 +442,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F2F2F7",
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: "#8E8E93",
   },
 }); 
