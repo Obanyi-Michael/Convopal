@@ -1,10 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
-const API_BASE_URL = 'https://back-6lbs.onrender.com/api/v1'; 
+const API_BASE_URL = 'https://back-6lbs.onrender.com/api/v1';
 const API_TIMEOUT = 10000; // 10 seconds
 
+// ------------------
 // API Response Types
+// ------------------
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -20,8 +23,8 @@ export interface AuthResponse {
     fullName: string;
     username: string;
     phone: string;
-    email?: string;
-    avatarUrl?: string;
+    email: string | null;
+    avatarUrl: string | null;
     isVerified: boolean;
   };
 }
@@ -44,10 +47,13 @@ export interface VerificationRequest {
   code: string;
 }
 
+// ------------------
 // API Service Class
+// ------------------
+
 class ApiService {
-  private baseURL = 'https://back-6lbs.onrender.com/api/v1';
-  private timeout = 10000; // 10 seconds
+  private baseURL = API_BASE_URL;
+  private timeout = API_TIMEOUT;
 
   constructor(baseURL: string = API_BASE_URL, timeout: number = API_TIMEOUT) {
     this.baseURL = baseURL;
@@ -82,7 +88,7 @@ class ApiService {
     }
   }
 
-  // Make HTTP request
+  // Make HTTP request (FIXED VERSION)
   private async makeRequest<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -95,7 +101,7 @@ class ApiService {
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...options.headers as Record<string, string>,
+        ...(options.headers as Record<string, string>),
       };
 
       if (token) {
@@ -113,29 +119,27 @@ class ApiService {
 
       clearTimeout(timeoutId);
 
-      console.log('API response status:', response.status);
+      const json = await response.json();
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error Response:', errorData);
-        
-        let errorMessage = `HTTP ${response.status}`;
-        if (errorData.message) {
-          errorMessage = errorData.message;
-        } else if (errorData.error) {
-          errorMessage = errorData.error;
-        }
-        
-        throw new Error(errorMessage);
+      console.log('API response status:', response.status);
+      console.log('API response body:', json);
+
+      if (!response.ok || json.success === false) {
+        const errorMessage = json.message || json.error || `HTTP ${response.status}`;
+        return {
+          success: false,
+          error: errorMessage,
+          message: json.message,
+        };
       }
 
-      const data = await response.json();
-      console.log('API response data:', data);
-      return { success: true, data };
+      return {
+        success: true,
+        data: json.data,
+        message: json.message,
+      };
     } catch (error) {
       console.error('API request failed:', error);
-      console.error('Request URL:', `${this.baseURL}${endpoint}`);
-      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -143,22 +147,23 @@ class ApiService {
     }
   }
 
-  // Authentication Methods
+  // -------------------
+  // Authentication APIs
+  // -------------------
+
   async signup(request: SignupRequest): Promise<ApiResponse<AuthResponse>> {
     console.log('Making signup request with data:', {
       fullName: request.fullName,
       username: request.username,
       country: request.country,
       phone: request.phone,
-      password: '***' // Don't log password
-    }); 
-    
+      password: '***', // Masked for safety
+    });
+
     const response = await this.makeRequest<AuthResponse>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify(request),
     });
-
-    console.log('Signup response:', response);
 
     if (response.success && response.data) {
       await this.setAuthToken(response.data.accessToken);
@@ -199,7 +204,10 @@ class ApiService {
     return await this.makeRequest<any>('/auth/validate');
   }
 
-  // Profile Management Methods
+  // -----------------
+  // Profile APIs
+  // -----------------
+
   async getCurrentUserProfile(): Promise<ApiResponse<any>> {
     return await this.makeRequest<any>('/profile/me');
   }
@@ -235,7 +243,10 @@ class ApiService {
     });
   }
 
-  // Contact Management Methods
+  // -----------------
+  // Contact APIs
+  // -----------------
+
   async sendContactRequest(username: string): Promise<ApiResponse<any>> {
     return await this.makeRequest<any>('/contacts/request', {
       method: 'POST',
@@ -273,42 +284,40 @@ class ApiService {
     });
   }
 
-  // Health Check
+  // ---------------------
+  // Health & Connectivity
+  // ---------------------
+
   async healthCheck(): Promise<ApiResponse<any>> {
     return await this.makeRequest<any>('/auth/health');
   }
 
-  // Test connectivity
   async testConnectivity(): Promise<ApiResponse<any>> {
     return await this.makeRequest<any>('/auth/test');
   }
 
-  // Simple connectivity test
   async testBackendConnection(): Promise<boolean> {
     try {
-      console.log('Testing backend connection...');
-      
       const healthResponse = await this.makeRequest<any>('/auth/health');
-      console.log('Health check response:', healthResponse);
-      
       return healthResponse.success;
     } catch (error) {
-      console.error('Backend connection test failed:', error);
       return false;
     }
   }
 
-  // Update API base URL
   updateBaseURL(newBaseURL: string): void {
     this.baseURL = newBaseURL;
     console.log('Updated API base URL to:', newBaseURL);
   }
 
-  // Chat Methods
+  // -----------------
+  // Messaging & Chat
+  // -----------------
+
   async sendMessage(receiverUsername: string, content: string, type: string = 'TEXT'): Promise<ApiResponse<any>> {
     return this.makeRequest('/chat/messages', {
       method: 'POST',
-      body: JSON.stringify({ receiverUsername, content, type })
+      body: JSON.stringify({ receiverUsername, content, type }),
     });
   }
 
@@ -318,7 +327,7 @@ class ApiService {
 
   async markMessagesAsRead(username: string): Promise<ApiResponse<any>> {
     return this.makeRequest(`/chat/messages/read/${username}`, {
-      method: 'POST'
+      method: 'POST',
     });
   }
 
@@ -330,11 +339,19 @@ class ApiService {
     return this.makeRequest('/chat/unread-messages');
   }
 
-  // Group Chat Methods
-  async createGroup(groupData: { name: string; description?: string; avatarUrl?: string; memberUsernames: string[] }): Promise<ApiResponse<any>> {
+  // -----------------
+  // Group Chats
+  // -----------------
+
+  async createGroup(groupData: {
+    name: string;
+    description?: string;
+    avatarUrl?: string;
+    memberUsernames: string[];
+  }): Promise<ApiResponse<any>> {
     return this.makeRequest('/groups', {
       method: 'POST',
-      body: JSON.stringify(groupData)
+      body: JSON.stringify(groupData),
     });
   }
 
@@ -349,7 +366,7 @@ class ApiService {
   async sendGroupMessage(groupId: number, content: string, type: string = 'TEXT'): Promise<ApiResponse<any>> {
     return this.makeRequest('/groups/messages', {
       method: 'POST',
-      body: JSON.stringify({ groupId, content, type })
+      body: JSON.stringify({ groupId, content, type }),
     });
   }
 
@@ -359,7 +376,7 @@ class ApiService {
 
   async markGroupMessagesAsRead(groupId: number): Promise<ApiResponse<any>> {
     return this.makeRequest(`/groups/${groupId}/messages/read`, {
-      method: 'POST'
+      method: 'POST',
     });
   }
 
@@ -368,5 +385,5 @@ class ApiService {
   }
 }
 
-// Export singleton instance
-export const apiService = new ApiService(); 
+// Export a singleton instance
+export const apiService = new ApiService();
