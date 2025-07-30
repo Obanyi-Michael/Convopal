@@ -1,0 +1,197 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_BASE_URL = 'https://back-6lbs.onrender.com/api/v1';
+const API_TIMEOUT = 10000; // 10 seconds
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  error?: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  refreshToken: string;
+  user: {
+    id: number;
+    fullName: string;
+    username: string;
+    phone: string;
+    email?: string;
+    avatarUrl?: string;
+    isVerified: boolean;
+  };
+}
+
+export interface SignupRequest {
+  fullName: string;
+  username: string;
+  country: string;
+  phone: string;
+  password: string;
+}
+
+export interface LoginRequest {
+  usernameOrPhone: string;
+  password: string;
+}
+
+class ApiService {
+  private baseURL = API_BASE_URL;
+  private timeout = API_TIMEOUT;
+
+  constructor(baseURL: string = API_BASE_URL, timeout: number = API_TIMEOUT) {
+    this.baseURL = baseURL;
+    this.timeout = timeout;
+  }
+
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      return await AsyncStorage.getItem('authToken');
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  }
+
+  private async setAuthSession(authData: AuthResponse): Promise<void> {
+    try {
+      const { accessToken, refreshToken, user } = authData;
+
+      if (!accessToken || !refreshToken || !user) {
+        throw new Error('Missing authentication data');
+      }
+
+      await AsyncStorage.multiSet([
+        ['authToken', accessToken],
+        ['refreshToken', refreshToken],
+        ['user', JSON.stringify(user)],
+      ]);
+    } catch (error) {
+      console.error('Error setting auth session:', error);
+    }
+  }
+
+  private async clearAuthSession(): Promise<void> {
+    try {
+      await AsyncStorage.multiRemove(['authToken', 'refreshToken', 'user']);
+    } catch (error) {
+      console.error('Error clearing auth session:', error);
+    }
+  }
+
+  public async getCurrentUserFromStorage(): Promise<AuthResponse['user'] | null> {
+    try {
+      const userJson = await AsyncStorage.getItem('user');
+      return userJson ? JSON.parse(userJson) : null;
+    } catch (error) {
+      console.error('Error reading user from storage:', error);
+      return null;
+    }
+  }
+
+  private async makeRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const token = await this.getAuthToken();
+      const url = `${this.baseURL}${endpoint}`;
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...options.headers as Record<string, string>,
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        let errorMessage = `HTTP ${response.status}`;
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      return { success: true, data: data.data, message: data.message };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  async signup(request: SignupRequest): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.makeRequest<AuthResponse>('/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+
+    if (response.success && response.data) {
+      await this.setAuthSession(response.data);
+    }
+
+    return response;
+  }
+
+  async login(request: LoginRequest): Promise<ApiResponse<AuthResponse>> {
+    const response = await this.makeRequest<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+
+    if (response.success && response.data) {
+      await this.setAuthSession(response.data);
+    }
+
+    return response;
+  }
+
+  async logout(): Promise<ApiResponse<void>> {
+    await this.clearAuthSession();
+    return { success: true };
+  }
+
+  async validateToken(): Promise<ApiResponse<any>> {
+    return this.makeRequest<any>('/auth/validate');
+  }
+
+  async refreshToken(): Promise<ApiResponse<AuthResponse>> {
+    return this.makeRequest<AuthResponse>('/auth/refresh', {
+      method: 'POST',
+    });
+  }
+
+  async getCurrentUser(): Promise<ApiResponse<any>> {
+    return this.makeRequest<any>('/auth/validate');
+  }
+
+  updateBaseURL(newBaseURL: string): void {
+    this.baseURL = newBaseURL;
+    console.log('Updated API base URL to:', newBaseURL);
+  }
+
+  // Additional methods (profile, chat, etc.) remain unchanged...
+  // You can move them here as needed or split into modules if it gets too long.
+}
+
+export const apiService = new ApiService();

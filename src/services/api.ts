@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // API Configuration
-// Hosted backend on Render
 const API_BASE_URL = 'https://back-6lbs.onrender.com/api/v1'; 
 const API_TIMEOUT = 10000; // 10 seconds
 
@@ -23,7 +22,7 @@ export interface AuthResponse {
     phone: string;
     email?: string;
     avatarUrl?: string;
-    isVerified: Boolean;
+    isVerified: boolean;
   };
 }
 
@@ -47,8 +46,8 @@ export interface VerificationRequest {
 
 // API Service Class
 class ApiService {
-  private baseURL: string;
-  private timeout: number;
+  private baseURL = 'https://back-6lbs.onrender.com/api/v1';
+  private timeout = 10000; // 10 seconds
 
   constructor(baseURL: string = API_BASE_URL, timeout: number = API_TIMEOUT) {
     this.baseURL = baseURL;
@@ -92,10 +91,7 @@ class ApiService {
       const token = await this.getAuthToken();
       const url = `${this.baseURL}${endpoint}`;
 
-      console.log('🔍 Making API request to:', url);
-      console.log('🔍 Request method:', options.method || 'GET');
-      console.log('🔍 Request headers:', options.headers);
-      console.log('🔍 Request body:', options.body);
+      console.log('Making API request to:', url);
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -104,16 +100,11 @@ class ApiService {
 
       if (token) {
         headers.Authorization = `Bearer ${token}`;
-        console.log('🔍 Added Authorization header');
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.log('⏰ Request timeout after', this.timeout, 'ms');
-        controller.abort();
-      }, this.timeout);
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      console.log('📤 Sending request...');
       const response = await fetch(url, {
         ...options,
         headers,
@@ -122,14 +113,11 @@ class ApiService {
 
       clearTimeout(timeoutId);
 
-      console.log('📥 Response received:');
-      console.log('📥 Status:', response.status);
-      console.log('📥 Status text:', response.statusText);
-      console.log('📥 Headers:', Object.fromEntries(response.headers.entries()));
+      console.log('API response status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('❌ API Error Response:', errorData);
+        console.error('API Error Response:', errorData);
         
         let errorMessage = `HTTP ${response.status}`;
         if (errorData.message) {
@@ -141,33 +129,13 @@ class ApiService {
         throw new Error(errorMessage);
       }
 
-      const responseData = await response.json();
-      console.log('✅ API response data:', responseData);
-      
-      // Handle the backend response format
-      if (responseData.success) {
-        return { 
-          success: true, 
-          data: responseData.data,
-          message: responseData.message,
-          error: responseData.error
-        };
-      } else {
-        return {
-          success: false,
-          error: responseData.error || responseData.message || 'Request failed'
-        };
-      }
+      const data = await response.json();
+      console.log('API response data:', data);
+      return { success: true, data };
     } catch (error) {
-      console.error('❌ API request failed:', error);
-      console.error('❌ Request URL:', `${this.baseURL}${endpoint}`);
-      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
-      
-      // Log more details about the error
-      if (error instanceof TypeError) {
-        console.error('❌ Network error - check if device can reach the server');
-      }
-      
+      console.error('API request failed:', error);
+      console.error('Request URL:', `${this.baseURL}${endpoint}`);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -221,6 +189,90 @@ class ApiService {
     return await this.makeRequest<any>('/auth/validate');
   }
 
+  async refreshToken(): Promise<ApiResponse<AuthResponse>> {
+    return await this.makeRequest<AuthResponse>('/auth/refresh', {
+      method: 'POST',
+    });
+  }
+
+  async getCurrentUser(): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>('/auth/validate');
+  }
+
+  // Profile Management Methods
+  async getCurrentUserProfile(): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>('/profile/me');
+  }
+
+  async getUserProfileById(userId: number): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>(`/profile/${userId}`);
+  }
+
+  async getUserProfileByUsername(username: string): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>(`/profile/username/${username}`);
+  }
+
+  async updateProfile(profileData: {
+    fullName?: string;
+    bio?: string;
+    status?: string;
+    avatarUrl?: string;
+  }): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>('/profile/update', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async searchUsers(query: string): Promise<ApiResponse<any[]>> {
+    return await this.makeRequest<any[]>(`/profile/search?query=${encodeURIComponent(query)}`);
+  }
+
+  async updateOnlineStatus(isOnline: boolean): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>('/profile/online-status', {
+      method: 'POST',
+      body: JSON.stringify({ isOnline }),
+    });
+  }
+
+  // Contact Management Methods
+  async sendContactRequest(username: string): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>('/contacts/request', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+  }
+
+  async getContacts(): Promise<ApiResponse<any[]>> {
+    return await this.makeRequest<any[]>('/contacts');
+  }
+
+  async getPendingRequests(): Promise<ApiResponse<any[]>> {
+    return await this.makeRequest<any[]>('/contacts/pending');
+  }
+
+  async getSentRequests(): Promise<ApiResponse<any[]>> {
+    return await this.makeRequest<any[]>('/contacts/sent');
+  }
+
+  async acceptContactRequest(contactId: number): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>(`/contacts/${contactId}/accept`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectContactRequest(contactId: number): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>(`/contacts/${contactId}/reject`, {
+      method: 'POST',
+    });
+  }
+
+  async removeContact(contactId: number): Promise<ApiResponse<any>> {
+    return await this.makeRequest<any>(`/contacts/${contactId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Health Check
   async healthCheck(): Promise<ApiResponse<any>> {
     return await this.makeRequest<any>('/auth/health');
@@ -231,62 +283,90 @@ class ApiService {
     return await this.makeRequest<any>('/auth/test');
   }
 
-  // Simple test method for debugging
-  async testConnection(): Promise<{ success: boolean; message: string }> {
-    console.log('🧪 Testing connection to backend...');
-    console.log('🧪 Base URL:', this.baseURL);
-    
+  // Simple connectivity test
+  async testBackendConnection(): Promise<boolean> {
     try {
-      const response = await this.makeRequest<any>('/auth/health');
-      console.log('🧪 Test response:', response);
+      console.log('Testing backend connection...');
       
-      if (response.success) {
-        return { success: true, message: 'Connection successful!' };
-      } else {
-        return { success: false, message: response.error || 'Connection failed' };
-      }
+      const healthResponse = await this.makeRequest<any>('/auth/health');
+      console.log('Health check response:', healthResponse);
+      
+      return healthResponse.success;
     } catch (error) {
-      console.error('🧪 Test failed:', error);
-      return { success: false, message: 'Network error occurred' };
+      console.error('Backend connection test failed:', error);
+      return false;
     }
   }
 
-  // Test connectivity with multiple URLs
-  async testBasicConnectivity(): Promise<{ success: boolean; details?: { workingURL?: string } }> {
-    const testURLs = [
-      'https://back-6lbs.onrender.com/api/v1/auth/test',
-      'http://10.132.96.164:8080/api/v1/auth/health',
-      'http://192.168.56.1:8080/api/v1/auth/health',
-      'http://192.168.137.1:8080/api/v1/auth/health',
-      'http://localhost:8080/api/v1/auth/health',
-      'http://10.0.2.2:8080/api/v1/auth/health'
-    ];
-    
-    
-      try {
-        // console.log('Testing URL:', url);
-        const response = await fetch("https://back-6lbs.onrender.com/api/v1/auth/test", {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          signal: AbortSignal.timeout(5000) // 5 second timeout
-        });
-        
-        if (response.ok) {
-          console.log('✅ Working URL found:');
-          return { success: true};
-        }
-      } catch (error) {
-        console.log('❌ Failed URL:', error);
-      }
-    }
-    
-
+  // Update API base URL
+  updateBaseURL(newBaseURL: string): void {
+    this.baseURL = newBaseURL;
+    console.log('Updated API base URL to:', newBaseURL);
   }
 
-  
+  // Chat Methods
+  async sendMessage(receiverUsername: string, content: string, type: string = 'TEXT'): Promise<ApiResponse<any>> {
+    return this.makeRequest('/chat/messages', {
+      method: 'POST',
+      body: JSON.stringify({ receiverUsername, content, type })
+    });
+  }
 
+  async getConversation(username: string, page: number = 0, size: number = 50): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/chat/conversation/${username}?page=${page}&size=${size}`);
+  }
+
+  async markMessagesAsRead(username: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/chat/messages/read/${username}`, {
+      method: 'POST'
+    });
+  }
+
+  async getUnreadCount(username: string): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/chat/unread-count/${username}`);
+  }
+
+  async getUnreadMessages(): Promise<ApiResponse<any>> {
+    return this.makeRequest('/chat/unread-messages');
+  }
+
+  // Group Chat Methods
+  async createGroup(groupData: { name: string; description?: string; avatarUrl?: string; memberUsernames: string[] }): Promise<ApiResponse<any>> {
+    return this.makeRequest('/groups', {
+      method: 'POST',
+      body: JSON.stringify(groupData)
+    });
+  }
+
+  async getUserGroups(): Promise<ApiResponse<any>> {
+    return this.makeRequest('/groups');
+  }
+
+  async getGroupById(groupId: number): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/groups/${groupId}`);
+  }
+
+  async sendGroupMessage(groupId: number, content: string, type: string = 'TEXT'): Promise<ApiResponse<any>> {
+    return this.makeRequest('/groups/messages', {
+      method: 'POST',
+      body: JSON.stringify({ groupId, content, type })
+    });
+  }
+
+  async getGroupMessages(groupId: number, page: number = 0, size: number = 50): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/groups/${groupId}/messages?page=${page}&size=${size}`);
+  }
+
+  async markGroupMessagesAsRead(groupId: number): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/groups/${groupId}/messages/read`, {
+      method: 'POST'
+    });
+  }
+
+  async getGroupUnreadCount(groupId: number): Promise<ApiResponse<any>> {
+    return this.makeRequest(`/groups/${groupId}/unread-count`);
+  }
+}
 
 // Export singleton instance
 export const apiService = new ApiService(); 

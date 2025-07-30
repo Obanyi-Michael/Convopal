@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     FlatList,
     Image,
@@ -9,10 +9,12 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
+    Alert,
+    ActivityIndicator
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-// import BackendTest from "../../../src/components/BackendTest";
+import { useAuth } from "../../../src/context/AuthContext";
 
 // Type definitions
 interface Chat {
@@ -21,96 +23,54 @@ interface Chat {
   lastMessage: string;
   time: string;
   unreadCount: number;
-  avatar: any;
-  isOfficial?: boolean;
-  isPinned?: boolean;
-  isMuted?: boolean;
-  status?: 'online' | 'offline' | 'typing';
+  avatar?: string;
+  isOnline?: boolean;
+  username: string;
 }
-
-// Mock data for chats
-const mockChats: Chat[] = [
-  {
-    id: "1",
-    name: "ConvoPal Team",
-    lastMessage: "Welcome to Convopal! Here are some features you can explore...",
-    time: "5:23",
-    unreadCount: 0,
-    avatar: require("../../../assets/images/Convopal_logo.jpg"),
-    isOfficial: true,
-    isPinned: true,
-    status: 'online',
-  },
-  {
-    id: "2",
-    name: "John Smith",
-    lastMessage: "Hey, how are you doing?",
-    time: "2:15",
-    unreadCount: 3,
-    avatar: "https://via.placeholder.com/50",
-    status: 'typing',
-  },
-  {
-    id: "3",
-    name: "Work Group",
-    lastMessage: "Meeting at 3 PM today",
-    time: "1:45",
-    unreadCount: 0,
-    avatar: "https://via.placeholder.com/50",
-    isMuted: true,
-  },
-  {
-    id: "4",
-    name: "Family Group",
-    lastMessage: "Dinner plans for tonight?",
-    time: "12:30",
-    unreadCount: 5,
-    avatar: "https://via.placeholder.com/50",
-  },
-];
 
 interface ChatItemProps {
   item: Chat;
   onPress: (chat: Chat) => void;
 }
 
-const ChatItem: React.FC<ChatItemProps> = ({ item, onPress }) => (
-  <TouchableOpacity style={styles.chatItem} onPress={() => onPress(item)}>
-    <View style={styles.avatarContainer}>
-      <Image source={item.avatar} style={styles.avatar} />
-      {item.status === 'online' && <View style={styles.onlineIndicator} />}
-      {item.status === 'typing' && (
-        <View style={styles.typingIndicator}>
-          <Text style={styles.typingText}>typing...</Text>
-        </View>
-      )}
-    </View>
-    
-    <View style={styles.chatInfo}>
-      <View style={styles.chatHeader}>
-        <View style={styles.nameContainer}>
-          <Text style={[styles.chatName, item.isPinned && styles.pinnedChat]}>
-            {item.name}
-          </Text>
-          {item.isPinned && <Ionicons name="pin" size={12} color="#07C160" />}
-          {item.isMuted && <Ionicons name="volume-mute" size={12} color="#8E8E93" />}
-        </View>
-        <Text style={styles.chatTime}>{item.time}</Text>
-      </View>
-      
-      <View style={styles.chatFooter}>
-        <Text style={[styles.lastMessage, item.isMuted && styles.mutedMessage]} numberOfLines={1}>
-          {item.lastMessage}
-        </Text>
-        {item.unreadCount > 0 && (
-          <View style={styles.unreadBadge}>
-            <Text style={styles.unreadText}>{item.unreadCount}</Text>
+const ChatItem: React.FC<ChatItemProps> = ({ item, onPress }) => {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  return (
+    <TouchableOpacity style={styles.chatItem} onPress={() => onPress(item)}>
+      <View style={styles.avatarContainer}>
+        {item.avatar ? (
+          <Image source={{ uri: item.avatar }} style={styles.avatar} />
+        ) : (
+          <View style={styles.defaultAvatar}>
+            <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
           </View>
         )}
+        {item.isOnline && <View style={styles.onlineIndicator} />}
       </View>
-    </View>
-  </TouchableOpacity>
-);
+      
+      <View style={styles.chatInfo}>
+        <View style={styles.chatHeader}>
+          <Text style={styles.chatName}>{item.name}</Text>
+          <Text style={styles.chatTime}>{item.time}</Text>
+        </View>
+        
+        <View style={styles.chatFooter}>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {item.lastMessage}
+          </Text>
+          {item.unreadCount > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>{item.unreadCount}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
 const EmptyState = () => (
   <View style={styles.emptyState}>
@@ -118,35 +78,83 @@ const EmptyState = () => (
       <Ionicons name="chatbubbles-outline" size={64} color="#C6C6C8" />
     </View>
     <Text style={styles.emptyTitle}>No chats yet</Text>
-    <Text style={styles.emptySubtitle}>Start a conversation with friends and family</Text>
-    <TouchableOpacity style={styles.emptyButton}>
-      <Text style={styles.emptyButtonText}>Start Chatting</Text>
+    <Text style={styles.emptySubtitle}>Start a conversation with your contacts</Text>
+    <TouchableOpacity 
+      style={styles.emptyButton}
+      onPress={() => router.push("/screens/new-friends")}
+    >
+      <Text style={styles.emptyButtonText}>Add Contacts</Text>
     </TouchableOpacity>
   </View>
 );
 
 export default function ChatsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [chats, setChats] = useState<Chat[]>(mockChats);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const { user, getContacts, getUnreadCount } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      loadChats();
+    }
+  }, [user]);
+
+  const loadChats = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const response = await getContacts();
+      if (response.success && response.data) {
+        // Convert contacts to chat format
+        const chatList: Chat[] = await Promise.all(
+          response.data.map(async (contact: any) => {
+            // Get unread count for this contact
+            const unreadResponse = await getUnreadCount(contact.contact.username);
+            const unreadCount = unreadResponse.success ? unreadResponse.data : 0;
+            
+            return {
+              id: contact.contact.username,
+              name: contact.contact.fullName,
+              lastMessage: "Tap to start chatting", // Placeholder - you can add last message logic
+              time: "Now",
+              unreadCount: unreadCount,
+              avatar: contact.contact.avatarUrl,
+              isOnline: contact.contact.isOnline,
+              username: contact.contact.username,
+            };
+          })
+        );
+        
+        setChats(chatList);
+      } else {
+        Alert.alert("Error", response.error || "Failed to load chats");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to load chats");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChatPress = (chat: Chat) => {
     router.push({
       pathname: "/(main)/(chat)/[id]",
-      params: { id: chat.id, name: chat.name }
+      params: { id: chat.username, name: chat.name }
     });
   };
 
   const handleAddPress = () => {
-    console.log("Add new chat pressed");
+    router.push("/screens/new-friends");
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await loadChats();
+    setRefreshing(false);
   };
 
   const filteredChats = chats.filter((chat) =>
@@ -157,11 +165,19 @@ export default function ChatsScreen() {
     <ChatItem item={item} onPress={handleChatPress} />
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#07C160" />
+          <Text style={styles.loadingText}>Loading chats...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      {/* Backend Test Component */}
-      {/* <BackendTest /> */}
-      
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
@@ -267,6 +283,19 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 25,
   },
+  defaultAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 25,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#8E8E93",
+  },
   onlineIndicator: {
     position: "absolute",
     bottom: 0,
@@ -298,17 +327,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 4,
   },
-  nameContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
   chatName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#000",
-  },
-  pinnedChat: {
-    marginLeft: 4,
   },
   chatTime: {
     fontSize: 12,
@@ -393,5 +415,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F2F2F7",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#8E8E93",
   },
 });

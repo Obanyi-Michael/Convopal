@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FlatList,
   Image,
@@ -8,44 +8,46 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Alert,
+  RefreshControl
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../../src/context/AuthContext";
 
-// Mock data for contacts
-const mockContacts = [
-  { id: "1", name: "ConvoPal Team", avatar: require("../../assets/images/Convopal_logo.jpg"), isOfficial: true, isOnline: true },
-  { id: "2", name: "Alice Johnson", avatar: "https://via.placeholder.com/50", isOnline: true },
-  { id: "3", name: "Bob Smith", avatar: "https://via.placeholder.com/50", isOnline: false },
-  { id: "4", name: "Carol Davis", avatar: "https://via.placeholder.com/50", isOnline: true },
-  { id: "5", name: "David Wilson", avatar: "https://via.placeholder.com/50", isOnline: false },
-  { id: "6", name: "Emma Brown", avatar: "https://via.placeholder.com/50", isOnline: true },
-  { id: "7", name: "Frank Miller", avatar: "https://via.placeholder.com/50", isOnline: false },
-  { id: "8", name: "Grace Lee", avatar: "https://via.placeholder.com/50", isOnline: true },
-];
-
-interface ContactItemProps {
-  item: {
-    id: string;
-    name: string;
-    avatar: any;
-    isOfficial?: boolean;
-    isOnline?: boolean;
+interface Contact {
+  id: number;
+  contact: {
+    id: number;
+    fullName: string;
+    username: string;
+    avatarUrl?: string;
+    isOnline: boolean;
+    status?: string;
   };
-  onPress: () => void;
+  status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'BLOCKED';
+  createdAt: string;
 }
 
-const ContactItem = ({ item, onPress }: ContactItemProps) => {
+interface ContactItemProps {
+  item: Contact;
+  onPress: () => void;
+  onAccept?: () => void;
+  onReject?: () => void;
+  showActions?: boolean;
+}
+
+const ContactItem = ({ item, onPress, onAccept, onReject, showActions = false }: ContactItemProps) => {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
   const renderAvatar = () => {
-    if (item.isOfficial) {
+    if (item.contact.avatarUrl) {
       return (
         <View style={styles.avatarContainer}>
-          <Image source={item.avatar} style={styles.avatar} />
-          {item.isOnline && <View style={styles.onlineIndicator} />}
+          <Image source={{ uri: item.contact.avatarUrl }} style={styles.avatar} />
+          {item.contact.isOnline && <View style={styles.onlineIndicator} />}
         </View>
       );
     }
@@ -53,9 +55,9 @@ const ContactItem = ({ item, onPress }: ContactItemProps) => {
     return (
       <View style={styles.avatarContainer}>
         <View style={styles.defaultAvatar}>
-          <Text style={styles.avatarText}>{getInitials(item.name)}</Text>
+          <Text style={styles.avatarText}>{getInitials(item.contact.fullName)}</Text>
         </View>
-        {item.isOnline && <View style={styles.onlineIndicator} />}
+        {item.contact.isOnline && <View style={styles.onlineIndicator} />}
       </View>
     );
   };
@@ -64,19 +66,37 @@ const ContactItem = ({ item, onPress }: ContactItemProps) => {
     <TouchableOpacity style={styles.contactItem} onPress={onPress}>
       {renderAvatar()}
       <View style={styles.contactInfo}>
-        <Text style={styles.contactName}>{item.name}</Text>
+        <Text style={styles.contactName}>{item.contact.fullName}</Text>
         <Text style={styles.contactStatus}>
-          {item.isOnline ? 'Online' : 'Offline'}
+          {item.contact.isOnline ? 'Online' : 'Offline'}
+          {item.contact.status && ` • ${item.contact.status}`}
         </Text>
       </View>
-      <View style={styles.contactActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="call" size={20} color="#07C160" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Ionicons name="videocam" size={20} color="#07C160" />
-        </TouchableOpacity>
-      </View>
+      {showActions && item.status === 'PENDING' ? (
+        <View style={styles.contactActions}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.acceptButton]} 
+            onPress={onAccept}
+          >
+            <Ionicons name="checkmark" size={20} color="#07C160" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.rejectButton]} 
+            onPress={onReject}
+          >
+            <Ionicons name="close" size={20} color="#FF3B30" />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.contactActions}>
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="call" size={20} color="#07C160" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton}>
+            <Ionicons name="videocam" size={20} color="#07C160" />
+          </TouchableOpacity>
+        </View>
+      )}
     </TouchableOpacity>
   );
 };
@@ -118,13 +138,77 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({ title, count }) => (
 
 export default function ContactsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [contacts] = useState(mockContacts);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { user, getContacts, getPendingRequests, acceptContactRequest, rejectContactRequest } = useAuth();
 
-  const handleContactPress = (contact: typeof mockContacts[0]) => {
+  const fetchContacts = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const [contactsResponse, pendingResponse] = await Promise.all([
+        getContacts(),
+        getPendingRequests()
+      ]);
+      
+      if (contactsResponse.success && contactsResponse.data) {
+        setContacts(contactsResponse.data);
+      }
+      
+      if (pendingResponse.success && pendingResponse.data) {
+        setPendingRequests(pendingResponse.data);
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to fetch contacts.");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContacts();
+  }, [user]);
+
+  const handleContactPress = (contact: Contact) => {
     router.push({
       pathname: "/(main)/(chat)/[id]",
-      params: { id: contact.id, name: contact.name }
+      params: { id: contact.contact.id.toString(), name: contact.contact.fullName }
     });
+  };
+
+  const handleAcceptContact = async (contact: Contact) => {
+    if (!user) return;
+    try {
+      const response = await acceptContactRequest(contact.id);
+      if (response.success) {
+        Alert.alert("Success", "Contact accepted!");
+        fetchContacts(); // Refresh the list
+      } else {
+        Alert.alert("Error", response.error || "Failed to accept contact.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to accept contact.");
+      console.error(error);
+    }
+  };
+
+  const handleRejectContact = async (contact: Contact) => {
+    if (!user) return;
+    try {
+      const response = await rejectContactRequest(contact.id);
+      if (response.success) {
+        Alert.alert("Success", "Contact rejected!");
+        fetchContacts(); // Refresh the list
+      } else {
+        Alert.alert("Error", response.error || "Failed to reject contact.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to reject contact.");
+      console.error(error);
+    }
   };
 
   const handleNewFriendsPress = () => {
@@ -144,18 +228,31 @@ export default function ContactsScreen() {
   };
 
   const filteredContacts = contacts.filter((contact) =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase())
+    contact.contact.fullName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const onlineContacts = filteredContacts.filter(contact => contact.isOnline);
-  const offlineContacts = filteredContacts.filter(contact => !contact.isOnline);
+  const filteredPendingRequests = pendingRequests.filter((contact) =>
+    contact.contact.fullName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
-  const renderContactItem = ({ item }: { item: typeof mockContacts[0] }) => (
+  const onlineContacts = filteredContacts.filter(contact => contact.contact.isOnline);
+  const offlineContacts = filteredContacts.filter(contact => !contact.contact.isOnline);
+
+  const renderContactItem = ({ item }: { item: Contact }) => (
     <ContactItem
       item={item}
       onPress={() => handleContactPress(item)}
+      onAccept={() => handleAcceptContact(item)}
+      onReject={() => handleRejectContact(item)}
+      showActions={item.status === 'PENDING'}
     />
   );
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await fetchContacts();
+    setRefreshing(false);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -181,8 +278,9 @@ export default function ContactsScreen() {
       <FlatList
         data={[
           { type: 'quickActions', data: [] },
-          { type: 'online', data: onlineContacts },
-          { type: 'offline', data: offlineContacts }
+          ...(filteredPendingRequests.length > 0 ? [{ type: 'pending', data: filteredPendingRequests }] : []),
+          ...(onlineContacts.length > 0 ? [{ type: 'online', data: onlineContacts }] : []),
+          ...(offlineContacts.length > 0 ? [{ type: 'offline', data: offlineContacts }] : [])
         ]}
         renderItem={({ item }) => {
           if (item.type === 'quickActions') {
@@ -219,7 +317,10 @@ export default function ContactsScreen() {
             return (
               <View>
                 <SectionHeader 
-                  title={item.type === 'online' ? 'Online' : 'All Contacts'} 
+                  title={
+                    item.type === 'pending' ? 'Pending Requests' :
+                    item.type === 'online' ? 'Online' : 'All Contacts'
+                  } 
                   count={item.data.length}
                 />
                 {item.data.map((contact) => (
@@ -227,6 +328,9 @@ export default function ContactsScreen() {
                     key={contact.id}
                     item={contact}
                     onPress={() => handleContactPress(contact)}
+                    onAccept={() => handleAcceptContact(contact)}
+                    onReject={() => handleRejectContact(contact)}
+                    showActions={contact.status === 'PENDING'}
                   />
                 ))}
               </View>
@@ -238,6 +342,9 @@ export default function ContactsScreen() {
         keyExtractor={(item, index) => `${item.type}-${index}`}
         showsVerticalScrollIndicator={false}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
     </SafeAreaView>
   );
@@ -375,6 +482,16 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     marginLeft: 12,
+  },
+  acceptButton: {
+    backgroundColor: "#07C16015",
+    borderRadius: 8,
+    padding: 8,
+  },
+  rejectButton: {
+    backgroundColor: "#FF3B3015",
+    borderRadius: 8,
+    padding: 8,
   },
   avatarContainer: {
     width: 40,

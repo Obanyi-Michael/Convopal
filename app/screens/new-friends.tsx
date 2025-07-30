@@ -9,22 +9,59 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomButton from "../../src/components/CustomButton";
+import { useAuth } from "../../src/context/AuthContext";
 
 export default function NewFriendsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const { sendContactRequest, searchUsers } = useAuth();
 
   const handleBackPress = () => {
     router.back();
   };
 
-  const handleSearchPress = () => {
+  const handleSearchPress = async () => {
     const trimmedQuery = searchQuery.trim();
-    if (trimmedQuery) {
-      Alert.alert("Search", `Searching for: ${trimmedQuery}`);
+    if (!trimmedQuery) {
+      Alert.alert("Error", "Please enter a username to search");
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const response = await searchUsers(trimmedQuery);
+      if (response.success && response.data) {
+        setSearchResults(response.data);
+      } else {
+        Alert.alert("Error", response.error || "Failed to search users");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to search users");
+      console.error(error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleAddContact = async (username: string) => {
+    try {
+      const response = await sendContactRequest(username);
+      if (response.success) {
+        Alert.alert("Success", "Contact request sent successfully!");
+        setSearchResults([]); // Clear search results
+        setSearchQuery(""); // Clear search query
+      } else {
+        Alert.alert("Error", response.error || "Failed to send contact request");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to send contact request");
+      console.error(error);
     }
   };
 
@@ -46,6 +83,34 @@ export default function NewFriendsScreen() {
   const handleInviteFriends = () => {
     Alert.alert("Invite Friends", "Opening share dialog...");
   };
+
+  const renderSearchResult = (user: any) => (
+    <View key={user.id} style={styles.searchResult}>
+      <View style={styles.userInfo}>
+        <View style={styles.avatarContainer}>
+          {user.avatarUrl ? (
+            <Image source={{ uri: user.avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={styles.defaultAvatar}>
+              <Text style={styles.avatarText}>
+                {user.fullName?.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.userDetails}>
+          <Text style={styles.userName}>{user.fullName}</Text>
+          <Text style={styles.userUsername}>@{user.username}</Text>
+        </View>
+      </View>
+      <CustomButton
+        title="Add"
+        onPress={() => handleAddContact(user.username)}
+        variant="primary"
+        size="sm"
+      />
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -74,13 +139,22 @@ export default function NewFriendsScreen() {
               />
             </View>
             <CustomButton
-              title="Search"
+              title={searching ? "Searching..." : "Search"}
               onPress={handleSearchPress}
               variant="primary"
               size="sm"
               style={styles.searchButton}
+              disabled={searching}
             />
           </View>
+          
+          {/* Search Results */}
+          {searchResults.length > 0 && (
+            <View style={styles.searchResults}>
+              <Text style={styles.resultsTitle}>Search Results</Text>
+              {searchResults.map(renderSearchResult)}
+            </View>
+          )}
         </View>
 
         {/* Add by Phone Number */}
@@ -288,5 +362,78 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  searchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#E0E0E0",
+  },
+  userInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  avatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  avatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 20,
+  },
+  defaultAvatar: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 20,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#000",
+  },
+  userDetails: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
+  userUsername: {
+    fontSize: 14,
+    color: "#8E8E93",
+    marginTop: 2,
+  },
+  searchResults: {
+    marginTop: 16,
+    backgroundColor: "#F2F2F7",
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  resultsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+    marginBottom: 12,
   },
 }); 

@@ -16,12 +16,12 @@ import {
     RefreshControl
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../../../src/context/AuthContext";
+import { useAuth } from "../../src/context/AuthContext";
 
-interface Message {
+interface GroupMessage {
   id: number;
   content: string;
-  type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'FILE' | 'LOCATION' | 'STICKER';
+  type: string;
   isRead: boolean;
   createdAt: string;
   sender: {
@@ -30,16 +30,10 @@ interface Message {
     username: string;
     avatarUrl?: string;
   };
-  receiver: {
-    id: number;
-    fullName: string;
-    username: string;
-    avatarUrl?: string;
-  };
 }
 
 interface MessageItemProps {
-  message: Message;
+  message: GroupMessage;
   isFromMe: boolean;
 }
 
@@ -67,6 +61,9 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isFromMe }) => {
         </View>
       )}
       <View style={[styles.messageBubble, isFromMe ? styles.myBubble : styles.otherBubble]}>
+        {!isFromMe && (
+          <Text style={styles.senderName}>{message.sender.fullName}</Text>
+        )}
         <Text style={[styles.messageText, isFromMe ? styles.myMessageText : styles.otherMessageText]}>
           {message.content}
         </Text>
@@ -78,32 +75,32 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, isFromMe }) => {
   );
 };
 
-export default function ChatDetailScreen() {
-  const { id, name } = useLocalSearchParams<{ id: string; name: string }>();
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function GroupChatDetailScreen() {
+  const { groupId, groupName } = useLocalSearchParams<{ groupId: string; groupName: string }>();
+  const [messages, setMessages] = useState<GroupMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const { user, getConversation, sendMessage, markMessagesAsRead } = useAuth();
+  const { user, getGroupMessages, sendGroupMessage, markGroupMessagesAsRead } = useAuth();
 
-  // Get the username from the contact ID (assuming the ID is the username)
-  const otherUsername = id;
+  const groupIdNum = parseInt(groupId || "0");
 
   useEffect(() => {
-    if (user && otherUsername) {
+    if (user && groupIdNum > 0) {
       loadMessages();
       // Mark messages as read when entering the chat
-      markMessagesAsRead(otherUsername);
+      markGroupMessagesAsRead(groupIdNum);
     }
-  }, [user, otherUsername]);
+  }, [user, groupIdNum]);
 
   const loadMessages = async () => {
-    if (!user || !otherUsername) return;
+    if (!user || groupIdNum <= 0) return;
     
     setLoading(true);
     try {
-      const response = await getConversation(otherUsername, 0, 50);
+      const response = await getGroupMessages(groupIdNum, 0, 50);
       if (response.success && response.data) {
         setMessages(response.data);
       } else {
@@ -118,11 +115,11 @@ export default function ChatDetailScreen() {
   };
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !user || !otherUsername) return;
+    if (!newMessage.trim() || !user || groupIdNum <= 0) return;
     
     setSending(true);
     try {
-      const response = await sendMessage(otherUsername, newMessage.trim(), 'TEXT');
+      const response = await sendGroupMessage(groupIdNum, newMessage.trim(), 'TEXT');
       if (response.success && response.data) {
         // Add the new message to the list
         setMessages(prev => [...prev, response.data]);
@@ -142,16 +139,22 @@ export default function ChatDetailScreen() {
     }
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadMessages();
+    setRefreshing(false);
+  };
+
   const handleBackPress = () => {
     router.back();
   };
 
   const handleMorePress = () => {
-    // Show chat options
+    // Show group options
     console.log("More options pressed");
   };
 
-  const isFromMe = (message: Message) => {
+  const isFromMe = (message: GroupMessage) => {
     return message.sender.username === user?.username;
   };
 
@@ -176,12 +179,12 @@ export default function ChatDetailScreen() {
         <View style={styles.headerInfo}>
           <View style={styles.headerAvatar}>
             <Text style={styles.headerAvatarText}>
-              {name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
+              {groupName ? groupName.split(' ').map(n => n[0]).join('').toUpperCase() : 'G'}
             </Text>
           </View>
           <View style={styles.headerText}>
-            <Text style={styles.headerName}>{name || "User"}</Text>
-            <Text style={styles.headerStatus}>Online</Text>
+            <Text style={styles.headerName}>{groupName || "Group"}</Text>
+            <Text style={styles.headerStatus}>Group Chat</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.moreButton} onPress={handleMorePress}>
@@ -200,7 +203,7 @@ export default function ChatDetailScreen() {
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={loadMessages} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       />
 
@@ -268,7 +271,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     marginRight: 12,
-    backgroundColor: "#07C160", // Placeholder for avatar background
+    backgroundColor: "#07C160",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -343,6 +346,12 @@ const styles = StyleSheet.create({
   otherBubble: {
     backgroundColor: "white",
     borderBottomLeftRadius: 4,
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#07C160",
+    marginBottom: 4,
   },
   messageText: {
     fontSize: 16,

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Alert,
     Image,
@@ -9,79 +9,145 @@ import {
     Text,
     TouchableOpacity,
     View,
+    ActivityIndicator,
+    RefreshControl
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import CustomButton from "../../src/components/CustomButton";
+import { useAuth } from "../../src/context/AuthContext";
 
 interface Group {
-  id: string;
+  id: number;
   name: string;
+  description?: string;
+  avatarUrl?: string;
   memberCount: number;
-  avatar?: any;
-  isOfficial?: boolean;
+  createdBy: {
+    id: number;
+    fullName: string;
+    username: string;
+  };
+  lastMessage?: {
+    content: string;
+    sender: {
+      fullName: string;
+    };
+    createdAt: string;
+  };
+  isActive: boolean;
 }
-
-// Mock groups data
-const mockGroups: Group[] = [
-  {
-    id: "1",
-    name: "ConvoPal Community",
-    memberCount: 1250,
-    avatar: require("../../assets/images/Convopal_logo.jpg"),
-    isOfficial: true,
-  },
-  {
-    id: "2",
-    name: "Tech Enthusiasts",
-    memberCount: 89,
-  },
-  {
-    id: "3",
-    name: "Travel Buddies",
-    memberCount: 156,
-  },
-];
 
 interface GroupItemProps {
   group: Group;
   onPress: (group: Group) => void;
 }
 
-const GroupItem: React.FC<GroupItemProps> = ({ group, onPress }) => (
-  <TouchableOpacity style={styles.groupItem} onPress={() => onPress(group)}>
-    {group.avatar ? (
-      <Image source={group.avatar} style={styles.groupAvatar} />
-    ) : (
-      <View style={styles.groupIcon}>
-        <Ionicons name="people" size={24} color="#07C160" />
+const GroupItem: React.FC<GroupItemProps> = ({ group, onPress }) => {
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+  };
+
+  const formatLastMessage = (lastMessage?: Group['lastMessage']) => {
+    if (!lastMessage) return "No messages yet";
+    const date = new Date(lastMessage.createdAt);
+    const now = new Date();
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    
+    if (diffInHours < 1) return `${lastMessage.sender.fullName}: ${lastMessage.content}`;
+    if (diffInHours < 24) return `${lastMessage.sender.fullName}: ${lastMessage.content}`;
+    return `${lastMessage.sender.fullName}: ${lastMessage.content}`;
+  };
+
+  return (
+    <TouchableOpacity style={styles.groupItem} onPress={() => onPress(group)}>
+      {group.avatarUrl ? (
+        <Image source={{ uri: group.avatarUrl }} style={styles.groupAvatar} />
+      ) : (
+        <View style={styles.groupIcon}>
+          <Text style={styles.groupIconText}>{getInitials(group.name)}</Text>
+        </View>
+      )}
+      <View style={styles.groupInfo}>
+        <Text style={styles.groupName}>{group.name}</Text>
+        <Text style={styles.groupMembers}>{group.memberCount} members</Text>
+        {group.lastMessage && (
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {formatLastMessage(group.lastMessage)}
+          </Text>
+        )}
       </View>
-    )}
-    <View style={styles.groupInfo}>
-      <Text style={styles.groupName}>{group.name}</Text>
-      <Text style={styles.groupMembers}>{group.memberCount} members</Text>
-    </View>
-    <Ionicons name="chevron-forward" size={20} color="#C6C6C8" />
-  </TouchableOpacity>
-);
+      <Ionicons name="chevron-forward" size={20} color="#C6C6C8" />
+    </TouchableOpacity>
+  );
+};
 
 export default function GroupChatsScreen() {
-  const [groups] = useState<Group[]>(mockGroups);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const { user, getUserGroups, createGroup } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      loadGroups();
+    }
+  }, [user]);
+
+  const loadGroups = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const response = await getUserGroups();
+      if (response.success && response.data) {
+        setGroups(response.data);
+      } else {
+        Alert.alert("Error", response.error || "Failed to load groups");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to load groups");
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadGroups();
+    setRefreshing(false);
+  };
 
   const handleBackPress = () => {
     router.back();
   };
 
   const handleGroupPress = (group: Group) => {
-    Alert.alert("Join Group", `Joining ${group.name}...`);
+    // Navigate to group chat detail screen
+    router.push({
+      pathname: "/screens/group-chat-detail",
+      params: { groupId: group.id.toString(), groupName: group.name }
+    });
   };
 
   const handleCreateGroup = () => {
-    Alert.alert("Create Group", "Opening group creation...");
+    router.push("/screens/create-group");
   };
 
   const handleDiscoverGroups = () => {
-    Alert.alert("Discover Groups", "Opening group discovery...");
+    Alert.alert("Discover Groups", "This feature is coming soon!");
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#07C160" />
+          <Text style={styles.loadingText}>Loading groups...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -96,7 +162,13 @@ export default function GroupChatsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         {/* Action Buttons */}
         <View style={styles.actionSection}>
           <CustomButton
@@ -115,10 +187,18 @@ export default function GroupChatsScreen() {
 
         {/* My Groups */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Groups</Text>
-          {groups.map((group) => (
-            <GroupItem key={group.id} group={group} onPress={handleGroupPress} />
-          ))}
+          <Text style={styles.sectionTitle}>My Groups ({groups.length})</Text>
+          {groups.length > 0 ? (
+            groups.map((group) => (
+              <GroupItem key={group.id} group={group} onPress={handleGroupPress} />
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color="#C6C6C8" />
+              <Text style={styles.emptyTitle}>No groups yet</Text>
+              <Text style={styles.emptySubtitle}>Create your first group to get started</Text>
+            </View>
+          )}
         </View>
 
         {/* Quick Actions */}
@@ -151,7 +231,7 @@ export default function GroupChatsScreen() {
           
           <View style={styles.separator} />
           
-          <TouchableOpacity style={styles.quickAction} onPress={() => Alert.alert("Group Invites", "Checking for group invites...")}>
+          <TouchableOpacity style={styles.quickAction} onPress={() => Alert.alert("Group Invites", "This feature is coming soon!")}>
             <View style={styles.quickActionIcon}>
               <Ionicons name="mail" size={24} color="#07C160" />
             </View>
@@ -251,6 +331,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 12,
   },
+  groupIconText: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#07C160",
+  },
   groupInfo: {
     flex: 1,
   },
@@ -263,6 +348,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#8E8E93",
     marginTop: 2,
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: "#8E8E93",
+    marginTop: 4,
   },
   quickAction: {
     flexDirection: "row",
@@ -298,5 +388,33 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F2F2F7",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: "#8E8E93",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 30,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#000",
+    marginTop: 15,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: "#8E8E93",
+    marginTop: 5,
+    textAlign: "center",
+    paddingHorizontal: 20,
   },
 }); 

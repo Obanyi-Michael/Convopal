@@ -94,7 +94,15 @@ export default function LoginScreen() {
     
     try {
       // Send trimmed values to backend
-      const result = await login(username.trim(), password.trim());
+      const result = await login(username.trim(), password.trim()); 
+      // const response = await fetch('https://back-6lbs.onrender.com/api/v1/auth/login', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify({ usernameOrPhone: username.trim(), password: password.trim() }),
+      // });
+      // const result = await response.json();
       
       if (result.success) {
         console.log("Login successful!");
