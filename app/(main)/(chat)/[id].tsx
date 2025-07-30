@@ -13,7 +13,9 @@ import {
     View,
     Alert,
     ActivityIndicator,
-    RefreshControl
+    RefreshControl,
+    Keyboard,
+    KeyboardEvent
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../../src/context/AuthContext";
@@ -93,7 +95,9 @@ export default function ChatDetailScreen() {
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+  const textInputRef = useRef<TextInput>(null);
   const { user, getConversation, sendMessage, markMessagesAsRead } = useAuth();
   const { colors } = useTheme();
 
@@ -107,6 +111,30 @@ export default function ChatDetailScreen() {
       markMessagesAsRead(otherUsername);
     }
   }, [user, otherUsername]);
+
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (e: KeyboardEvent) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        // Scroll to bottom when keyboard appears
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
+  }, []);
 
   const loadMessages = async () => {
     if (!user || !otherUsername) return;
@@ -175,6 +203,13 @@ export default function ChatDetailScreen() {
     return message.sender.username === user?.username;
   };
 
+  const handleTextInputFocus = () => {
+    // Scroll to bottom when input is focused
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -222,14 +257,18 @@ export default function ChatDetailScreen() {
         contentContainerStyle={styles.messagesContent}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
         refreshControl={
           <RefreshControl refreshing={loading} onRefresh={loadMessages} />
         }
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       />
 
       {/* Input */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         style={[styles.inputContainer, { 
           backgroundColor: colors.card,
           borderTopColor: colors.borderLight
@@ -240,6 +279,7 @@ export default function ChatDetailScreen() {
           borderColor: colors.inputBorder
         }]}>
           <TextInput
+            ref={textInputRef}
             style={[styles.textInput, { color: colors.textPrimary }]}
             placeholder="Type a message..."
             value={newMessage}
@@ -248,6 +288,9 @@ export default function ChatDetailScreen() {
             maxLength={500}
             placeholderTextColor={colors.inputPlaceholder}
             editable={!sending}
+            onFocus={handleTextInputFocus}
+            blurOnSubmit={false}
+            returnKeyType="default"
           />
           <TouchableOpacity 
             style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled, 
@@ -321,6 +364,7 @@ const styles = StyleSheet.create({
   },
   messagesContent: {
     paddingVertical: 16,
+    paddingBottom: 20,
   },
   messageContainer: {
     flexDirection: "row",
@@ -385,6 +429,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    paddingBottom: Platform.OS === "ios" ? 12 : 16,
     shadowColor: "rgba(0, 0, 0, 0.1)",
     shadowOffset: {
       width: 0,
@@ -409,14 +454,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    minHeight: 44,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     maxHeight: 100,
+    minHeight: 24,
     paddingVertical: 6,
     paddingHorizontal: 0,
     lineHeight: 20,
+    textAlignVertical: "center",
   },
   sendButton: {
     marginLeft: 12,
