@@ -116,6 +116,7 @@ export default function ChatDetailScreen() {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       (e: KeyboardEvent) => {
+        console.log('Keyboard did show, height:', e.endCoordinates.height);
         setKeyboardHeight(e.endCoordinates.height);
         // Scroll to bottom when keyboard appears
         setTimeout(() => {
@@ -126,11 +127,15 @@ export default function ChatDetailScreen() {
     const keyboardDidHideListener = Keyboard.addListener(
       'keyboardDidHide',
       () => {
+        console.log('Keyboard did hide');
         setKeyboardHeight(0);
       }
     );
 
+    console.log('Keyboard listeners added');
+
     return () => {
+      console.log('Keyboard listeners removed');
       keyboardDidShowListener.remove();
       keyboardDidHideListener.remove();
     };
@@ -204,6 +209,7 @@ export default function ChatDetailScreen() {
   };
 
   const handleTextInputFocus = () => {
+    console.log('Text input focused');
     // Scroll to bottom when input is focused
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
