@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     FlatList,
     Image,
@@ -7,78 +7,17 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    ActivityIndicator,
+    RefreshControl,
+    Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// Mock data for discover content
-const featuredContent = [
-  {
-    id: "1",
-    title: "Trending Topics",
-    subtitle: "What's happening now",
-    image: "https://via.placeholder.com/300x200",
-    color: "#FF6B6B",
-    icon: "trending-up"
-  },
-  {
-    id: "2",
-    title: "Local Events",
-    subtitle: "Discover events near you",
-    image: "https://via.placeholder.com/300x200",
-    color: "#4ECDC4",
-    icon: "location"
-  },
-  {
-    id: "3",
-    title: "New Groups",
-    subtitle: "Join exciting communities",
-    image: "https://via.placeholder.com/300x200",
-    color: "#45B7D1",
-    icon: "people"
-  }
-];
-
-const categories = [
-  { id: "1", name: "Technology", icon: "laptop", color: "#FF6B6B" },
-  { id: "2", name: "Sports", icon: "football", color: "#4ECDC4" },
-  { id: "3", name: "Music", icon: "musical-notes", color: "#45B7D1" },
-  { id: "4", name: "Food", icon: "restaurant", color: "#96CEB4" },
-  { id: "5", name: "Travel", icon: "airplane", color: "#FFEAA7" },
-  { id: "6", name: "Gaming", icon: "game-controller", color: "#DDA0DD" },
-  { id: "7", name: "Fitness", icon: "fitness", color: "#FF8C42" },
-  { id: "8", name: "Art", icon: "color-palette", color: "#A8E6CF" }
-];
-
-const recommendations = [
-  {
-    id: "1",
-    title: "Tech Enthusiasts",
-    members: 1247,
-    description: "Discuss the latest in technology and innovation",
-    image: "https://via.placeholder.com/100x100",
-    isNew: true
-  },
-  {
-    id: "2",
-    title: "Coffee Lovers",
-    members: 892,
-    description: "Share your favorite coffee spots and recipes",
-    image: "https://via.placeholder.com/100x100",
-    isNew: false
-  },
-  {
-    id: "3",
-    title: "Photography Club",
-    members: 2156,
-    description: "Showcase your photography skills",
-    image: "https://via.placeholder.com/100x100",
-    isNew: true
-  }
-];
+import { discoverApiService, FeaturedContent, LocalEvent, Recommendation, Category } from "../../../src/services/discoverApi";
+import { useTheme } from "../../../src/context/ThemeContext";
 
 interface FeaturedCardProps {
-  item: typeof featuredContent[0];
+  item: FeaturedContent;
   onPress: () => void;
 }
 
@@ -98,7 +37,7 @@ const FeaturedCard: React.FC<FeaturedCardProps> = ({ item, onPress }) => (
 );
 
 interface CategoryItemProps {
-  item: typeof categories[0];
+  item: Category;
   onPress: () => void;
 }
 
@@ -108,11 +47,12 @@ const CategoryItem: React.FC<CategoryItemProps> = ({ item, onPress }) => (
       <Ionicons name={item.icon as any} size={24} color={item.color} />
     </View>
     <Text style={styles.categoryName}>{item.name}</Text>
+    <Text style={styles.categoryCount}>{item.count} topics</Text>
   </TouchableOpacity>
 );
 
 interface RecommendationCardProps {
-  item: typeof recommendations[0];
+  item: Recommendation;
   onPress: () => void;
 }
 
@@ -122,11 +62,18 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item, onPress }
     <View style={styles.recommendationContent}>
       <View style={styles.recommendationHeader}>
         <Text style={styles.recommendationTitle}>{item.title}</Text>
-        {item.isNew && (
-          <View style={styles.newBadge}>
-            <Text style={styles.newBadgeText}>NEW</Text>
-          </View>
-        )}
+        <View style={styles.badgeContainer}>
+          {item.isNew && (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>NEW</Text>
+            </View>
+          )}
+          {item.trending && (
+            <View style={styles.trendingBadge}>
+              <Text style={styles.trendingBadgeText}>🔥</Text>
+            </View>
+          )}
+        </View>
       </View>
       <Text style={styles.recommendationDescription}>{item.description}</Text>
       <View style={styles.recommendationFooter}>
@@ -141,47 +88,114 @@ const RecommendationCard: React.FC<RecommendationCardProps> = ({ item, onPress }
 );
 
 export default function DiscoverScreen() {
+  const { colors } = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [featuredContent, setFeaturedContent] = useState<FeaturedContent[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [localEvents, setLocalEvents] = useState<LocalEvent[]>([]);
 
-  const handleFeaturedPress = (item: typeof featuredContent[0]) => {
-    console.log("Featured item pressed:", item.title);
+  useEffect(() => {
+    loadDiscoverData();
+  }, []);
+
+  const loadDiscoverData = async () => {
+    try {
+      setLoading(true);
+      const [featured, cats, recs, events] = await Promise.all([
+        discoverApiService.getFeaturedContent(),
+        discoverApiService.getCategories(),
+        discoverApiService.getRecommendations(),
+        discoverApiService.getLocalEvents()
+      ]);
+
+      setFeaturedContent(featured);
+      setCategories(cats);
+      setRecommendations(recs);
+      setLocalEvents(events);
+    } catch (error) {
+      console.error('Failed to load discover data:', error);
+      Alert.alert('Error', 'Failed to load discover content. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCategoryPress = (item: typeof categories[0]) => {
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadDiscoverData();
+    setRefreshing(false);
+  };
+
+  const handleFeaturedPress = (item: FeaturedContent) => {
+    console.log("Featured item pressed:", item.title);
+    if (item.url) {
+      // In a real app, you might open the URL or navigate to a detail screen
+      Alert.alert('Featured Content', `Opening: ${item.title}`);
+    }
+  };
+
+  const handleCategoryPress = (item: Category) => {
     setSelectedCategory(item.id);
     console.log("Category pressed:", item.name);
+    Alert.alert('Category', `Selected: ${item.name} (${item.count} topics)`);
   };
 
-  const handleRecommendationPress = (item: typeof recommendations[0]) => {
+  const handleRecommendationPress = (item: Recommendation) => {
     console.log("Recommendation pressed:", item.title);
+    Alert.alert('Join Group', `Joining: ${item.title}`);
   };
 
-  const renderFeaturedItem = ({ item }: { item: typeof featuredContent[0] }) => (
+  const handleEventPress = (event: LocalEvent) => {
+    console.log("Event pressed:", event.title);
+    Alert.alert('Event Details', `${event.title}\n\n${event.description}\n\nDate: ${new Date(event.date).toLocaleDateString()}\nLocation: ${event.location}\nAttendees: ${event.attendees}`);
+  };
+
+  const renderFeaturedItem = ({ item }: { item: FeaturedContent }) => (
     <FeaturedCard item={item} onPress={() => handleFeaturedPress(item)} />
   );
 
-  const renderCategoryItem = ({ item }: { item: typeof categories[0] }) => (
+  const renderCategoryItem = ({ item }: { item: Category }) => (
     <CategoryItem item={item} onPress={() => handleCategoryPress(item)} />
   );
 
-  const renderRecommendationItem = ({ item }: { item: typeof recommendations[0] }) => (
+  const renderRecommendationItem = ({ item }: { item: Recommendation }) => (
     <RecommendationCard item={item} onPress={() => handleRecommendationPress(item)} />
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.success} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading discover content...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover</Text>
+      <View style={[styles.header, { backgroundColor: colors.card }]}>
+        <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Discover</Text>
         <TouchableOpacity style={styles.searchButton}>
-          <Ionicons name="search" size={24} color="#07C160" />
+          <Ionicons name="search" size={24} color={colors.success} />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
         {/* Featured Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Featured</Text>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Featured</Text>
           <FlatList
             data={featuredContent}
             renderItem={renderFeaturedItem}
@@ -193,8 +207,8 @@ export default function DiscoverScreen() {
         </View>
 
         {/* Categories Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Categories</Text>
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Categories</Text>
           <View style={styles.categoriesGrid}>
             {categories.map((category) => (
               <CategoryItem
@@ -206,12 +220,41 @@ export default function DiscoverScreen() {
           </View>
         </View>
 
-        {/* Recommendations Section */}
-        <View style={styles.section}>
+        {/* Local Events Section */}
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recommended for You</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Local Events</Text>
             <TouchableOpacity>
-              <Text style={styles.seeAllText}>See All</Text>
+              <Text style={[styles.seeAllText, { color: colors.success }]}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          {localEvents.map((event) => (
+            <TouchableOpacity 
+              key={event.id} 
+              style={styles.eventCard}
+              onPress={() => handleEventPress(event)}
+            >
+              <Image source={{ uri: event.image }} style={styles.eventImage} />
+              <View style={styles.eventContent}>
+                <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>{event.title}</Text>
+                <Text style={[styles.eventDescription, { color: colors.textSecondary }]}>{event.description}</Text>
+                <View style={styles.eventFooter}>
+                  <Ionicons name="location" size={14} color={colors.textSecondary} />
+                  <Text style={[styles.eventLocation, { color: colors.textSecondary }]}>{event.location}</Text>
+                  <Ionicons name="people" size={14} color={colors.textSecondary} />
+                  <Text style={[styles.eventAttendees, { color: colors.textSecondary }]}>{event.attendees} attending</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Recommendations Section */}
+        <View style={[styles.section, { backgroundColor: colors.card }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recommended for You</Text>
+            <TouchableOpacity>
+              <Text style={[styles.seeAllText, { color: colors.success }]}>See All</Text>
             </TouchableOpacity>
           </View>
           {recommendations.map((recommendation) => (
@@ -359,6 +402,11 @@ const styles = StyleSheet.create({
     color: "#000",
     textAlign: "center",
   },
+  categoryCount: {
+    fontSize: 12,
+    color: "#8E8E93",
+    marginTop: 4,
+  },
   recommendationCard: {
     flexDirection: "row",
     backgroundColor: "white",
@@ -391,13 +439,29 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#000",
   },
+  badgeContainer: {
+    flexDirection: "row",
+  },
   newBadge: {
     backgroundColor: "#07C160",
     borderRadius: 5,
     paddingHorizontal: 6,
     paddingVertical: 2,
+    marginLeft: 8,
   },
   newBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "white",
+  },
+  trendingBadge: {
+    backgroundColor: "#FFD700", // Gold color for trending
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 8,
+  },
+  trendingBadgeText: {
     fontSize: 12,
     fontWeight: "600",
     color: "white",
@@ -426,5 +490,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "white",
+  },
+  eventCard: {
+    flexDirection: "row",
+    backgroundColor: "white",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  eventImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+  },
+  eventContent: {
+    flex: 1,
+    padding: 12,
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  eventDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  eventFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  eventLocation: {
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  eventAttendees: {
+    marginLeft: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F2F2F7",
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
   },
 }); 
