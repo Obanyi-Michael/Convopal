@@ -117,6 +117,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
         setUser(verifiedUser);
         setIsAuthenticated(true);
+        // Store both accessToken and refreshToken
+        await AsyncStorage.setItem('authToken', response.data.accessToken);
         await AsyncStorage.setItem('refreshToken', response.data.refreshToken);
         return { success: true };
       } else {
@@ -140,6 +142,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.success && response.data) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        // Store the accessToken, not refreshToken
+        await AsyncStorage.setItem('authToken', response.data.accessToken);
         await AsyncStorage.setItem('refreshToken', response.data.refreshToken);
         return { success: true };
       } else {
@@ -159,6 +163,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setUser(null);
       setIsAuthenticated(false);
+      await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('refreshToken');
     }
   };
